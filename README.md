@@ -1,6 +1,6 @@
 # Expert Knowledge Network
 
-[![Tests](https://github.com/for-aiur/expert-knowledge-network/actions/workflows/test.yml/badge.svg)](https://github.com/for-aiur/expert-knowledge-network/actions/workflows/test.yml)
+[![Tests](https://github.com/for-aiur/expert-knowledge-network/actions/workflows/test.yml/badge.svg)](https://github.com/for-aiur/expert-knowledge-network/actions/workflows/test.yml) [![Latest release](https://img.shields.io/github/v/release/for-aiur/expert-knowledge-network?display_name=tag&sort=semver)](https://github.com/for-aiur/expert-knowledge-network/releases/latest) [![Live beta](https://img.shields.io/badge/Live-Beta-117668?logo=cloudflare&logoColor=white)](https://expert-knowledge-network-beta.yildirimmehmet82.workers.dev)
 
 [Open the deployed beta](https://expert-knowledge-network-beta.yildirimmehmet82.workers.dev) · [Swagger API](https://expert-knowledge-network-beta.yildirimmehmet82.workers.dev/api-docs)
 
@@ -34,10 +34,10 @@ The result includes status, review counts, an aggregated assessment, safety and 
 Example submission:
 
 ```sh
-curl -X POST https://expert-knowledge-network-beta.yildirimmehmet82.workers.dev/api/v1/tasks \
-  -H "Authorization: Bearer $EKN_CLIENT_KEY" \
-  -H "Content-Type: application/json" \
-  -H "Idempotency-Key: diagnosis-2026-0042" \
+curl -X POST https://expert-knowledge-network-beta.yildirimmehmet82.workers.dev/api/v1/tasks \\
+  -H "Authorization: Bearer $EKN_CLIENT_KEY" \\
+  -H "Content-Type: application/json" \\
+  -H "Idempotency-Key: diagnosis-2026-0042" \\
   -d '{
     "schema_version": 1,
     "content_language": "en",
@@ -53,7 +53,7 @@ curl -X POST https://expert-knowledge-network-beta.yildirimmehmet82.workers.dev/
 Use the returned `id` to retrieve progress and review results:
 
 ```sh
-curl https://expert-knowledge-network-beta.yildirimmehmet82.workers.dev/api/v1/tasks/TASK_ID \
+curl https://expert-knowledge-network-beta.yildirimmehmet82.workers.dev/api/v1/tasks/TASK_ID \\
   -H "Authorization: Bearer $EKN_CLIENT_KEY"
 ```
 
