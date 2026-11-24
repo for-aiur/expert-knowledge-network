@@ -3,6 +3,8 @@ name: Tests
 on:
   push:
   pull_request:
+  release:
+    types: [published]
 
 jobs:
   test:
@@ -18,7 +20,7 @@ jobs:
 
   deploy:
     name: Deploy beta
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'release' && github.event.action == 'published' && github.event.release.prerelease == false
     needs: test
     runs-on: ubuntu-latest
     steps:

@@ -77,4 +77,4 @@ Run `npm test` to build and run the test suite. Local fixture scripts are for lo
 
 ## CI/CD
 
-GitHub Actions tests pushes and pull requests. Merging to `main` deploys the beta after tests pass. Add repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. Protect `main` by requiring pull requests and the `Tests / test` check.
+GitHub Actions tests pushes, pull requests and releases. Publishing a stable GitHub release deploys that tagged version to the beta after tests pass; merging to `main` does not deploy. Add repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. Protect `main` by requiring pull requests and the `Tests / test` check.
