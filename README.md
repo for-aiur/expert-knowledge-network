@@ -2,13 +2,13 @@
 
 [![Tests](https://github.com/for-aiur/expert-knowledge-network/actions/workflows/test.yml/badge.svg)](https://github.com/for-aiur/expert-knowledge-network/actions/workflows/test.yml)
 
-[Open the beta](https://expert-knowledge-network-beta.yildirimmehmet82.workers.dev)
+[Open the deployed beta](https://expert-knowledge-network-beta.yildirimmehmet82.workers.dev) · [Swagger API](https://expert-knowledge-network-beta.yildirimmehmet82.workers.dev/api-docs)
 
-A practical knowledge-sharing platform for technicians. Share repair experience, learn from independently reviewed cases, and build a reputation through useful contributions.
+A platform for technicians to share repair knowledge and review technical diagnoses.
 
 ## User flow
 
-Technicians create an account, choose areas of expertise, and submit a repair report. The community can review eligible reports independently. Authors can track progress, respond to clarification requests, and see points and achievements for useful contributions. External clients can submit AI diagnoses through the API and retrieve independent expert assessments.
+Technicians submit repair reports, respond to reviewer questions, and review cases matching their expertise. External clients submit AI diagnoses for independent assessment.
 
 ## Features
 
@@ -21,13 +21,15 @@ Technicians create an account, choose areas of expertise, and submit a repair re
 
 ## API
 
-[Open the interactive Swagger documentation](/api-docs.html). The OpenAPI file is available at [`/openapi.yaml`](/openapi.yaml).
+[Open the interactive Swagger documentation](https://expert-knowledge-network-beta.yildirimmehmet82.workers.dev/api-docs). The OpenAPI file is available at [openapi.yaml](https://expert-knowledge-network-beta.yildirimmehmet82.workers.dev/openapi.yaml).
 
-External clients can submit an AI diagnosis for independent review with `POST /api/v1/tasks`, then retrieve its status and assessment with `GET /api/v1/tasks/{taskId}`. Access requires a provisioned bearer API key. Task creation requires an idempotency key and includes equipment category, symptoms, proposed diagnosis, optional supporting evidence and next steps, content language, and the requested number of reviews. Personal contact details and confidential context are rejected.
+External API access uses a bearer key issued by an administrator. Each client can create private diagnosis review tasks and read its own task results. Requests are limited to 60 per minute. Personal contact details and confidential text are rejected.
 
-The result provides task status, required/assigned/completed review counts, an aggregate assessment with disagreement and safety indicators, and individual rubric answers with redacted reasoning. Tasks are private to the API client that created them. Possible statuses include pending, in review, needs clarification, disputed, peer reviewed, rejected and inconclusive. API clients are limited to 60 requests per minute.
+The result includes status, review counts, an aggregated assessment, safety and disagreement flags, and individual rubric answers with redacted reasoning.
 
-Typical flow: obtain a client API key from the platform administrator, submit a diagnosis task with a stable `Idempotency-Key`, save the returned task ID, poll the task endpoint for progress, then read the aggregate and individual assessments when review completes. API keys and personal or confidential data should not be placed in source control or submitted in case text.
+1. Submit a diagnosis with `POST /api/v1/tasks` and a unique `Idempotency-Key`.
+2. Save the returned task ID.
+3. Check progress and results with `GET /api/v1/tasks/{taskId}`.
 
 Example submission:
 
@@ -55,7 +57,7 @@ curl https://expert-knowledge-network-beta.yildirimmehmet82.workers.dev/api/v1/t
   -H "Authorization: Bearer $EKN_CLIENT_KEY"
 ```
 
-Achievements recognize peer-reviewed contributions and completed reviews. They represent community participation, not professional credentials.
+Achievements recognize peer-reviewed reports and completed reviews. They are community milestones, not professional credentials.
 
 ## Develop
 
@@ -69,3 +71,7 @@ npm run dev
 ```
 
 Run `npm test` to build and run the test suite. Local fixture scripts are for local development only.
+
+## CI/CD
+
+GitHub Actions tests pushes and pull requests. Merging to `main` deploys the beta after tests pass. Add repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. Protect `main` by requiring pull requests and the `Tests / test` check.
