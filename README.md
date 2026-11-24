@@ -1,6 +1,6 @@
 # Expert Knowledge Network
 
-[![Tests](https://github.com/for-aiur/expert-knowledge-network/actions/workflows/test.yml/badge.svg)](https://github.com/for-aiur/expert-knowledge-network/actions/workflows/test.yml) [![Latest release](https://img.shields.io/github/v/release/for-aiur/expert-knowledge-network?display_name=tag&sort=semver)](https://github.com/for-aiur/expert-knowledge-network/releases/latest) [![Live beta](https://img.shields.io/badge/Live-Beta-117668?logo=cloudflare&logoColor=white)](https://expert-knowledge-network-beta.yildirimmehmet82.workers.dev)
+[![Tests](https://github.com/for-aiur/expert-knowledge-network/actions/workflows/test.yml/badge.svg?branch=main&event=pull_request)](https://github.com/for-aiur/expert-knowledge-network/actions/workflows/test.yml?query=event%3Apull_request+branch%3Amain) [![Latest release](https://img.shields.io/github/v/release/for-aiur/expert-knowledge-network?display_name=tag&sort=semver)](https://github.com/for-aiur/expert-knowledge-network/releases/latest) [![Live beta](https://img.shields.io/badge/Live-Beta-117668?logo=cloudflare&logoColor=white)](https://expert-knowledge-network-beta.yildirimmehmet82.workers.dev)
 
 [Open the deployed beta](https://expert-knowledge-network-beta.yildirimmehmet82.workers.dev) · [Swagger API](https://expert-knowledge-network-beta.yildirimmehmet82.workers.dev/api-docs)
 
