@@ -1,0 +1,345 @@
+openapi: 3.0.3
+info:
+  title: Expert Knowledge Network API
+  version: 1.0.0
+  description: API for submitting AI diagnosis cases for independent human review and retrieving their assessment. Repair reports remain user-submitted through the application.
+servers:
+  - url: https://expert-knowledge-network-beta.yildirimmehmet82.workers.dev
+    description: Closed beta
+paths:
+  /api/health:
+    get:
+      summary: Check service and database health
+      responses:
+        '200': { description: Service is healthy }
+  /api/session:
+    get:
+      summary: Get the current browser session
+      responses:
+        '200': { description: Signed-in user or null }
+  /api/register:
+    post:
+      summary: Register with a beta invitation
+      description: Sets a secure session cookie. Email verification is not currently available.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, nickname, invite_code, privacy_consent]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 12, maxLength: 128 }
+                nickname: { type: string, maxLength: 40 }
+                invite_code: { type: string }
+                privacy_consent: { type: boolean, enum: [true] }
+      responses:
+        '201': { description: Account created }
+        '403': { description: Invitation or consent required }
+  /api/login:
+    post:
+      summary: Sign in
+      description: Sets a secure session cookie. Same-origin requests are required.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        '200': { description: Signed in }
+        '401': { description: Invalid credentials }
+  /api/logout:
+    post:
+      summary: Sign out
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200': { description: Session cleared }
+  /api/profile/expertise:
+    put:
+      summary: Update account expertise categories
+      security: [{ sessionCookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expertise]
+              properties:
+                expertise: { type: array, items: { type: string } }
+      responses:
+        '200': { description: Updated profile }
+        '401': { description: Sign in required }
+  /api/account/delete:
+    post:
+      summary: Delete the signed-in account and its personal data
+      security: [{ sessionCookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: { type: string }
+      responses:
+        '200': { description: Account deleted }
+        '403': { description: Password verification failed }
+  /api/workflows/{workflow}/{version}/validate:
+    post:
+      summary: Validate YAML workflow fields
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - in: path
+          name: workflow
+          required: true
+          schema: { type: string, example: repair_case }
+        - in: path
+          name: version
+          required: true
+          schema: { type: integer, example: 1 }
+        - in: header
+          name: X-EKN-Language
+          schema: { type: string, enum: [en, de, tr, pl, ru, ar] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: { type: string } }
+      responses:
+        '200': { description: Fields are valid }
+        '422': { description: Field validation errors }
+  /api/v1/repairs:
+    get:
+      summary: List community-shareable peer-reviewed repair reports
+      parameters:
+        - { in: query, name: cursor, schema: { type: string } }
+        - { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 50 } }
+        - { in: query, name: category, schema: { type: string } }
+      responses:
+        '200': { description: Paginated repair reports }
+  /api/v1/repairs/{repairId}:
+    get:
+      summary: Get a shareable repair report
+      parameters:
+        - { in: path, name: repairId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Repair report }
+        '404': { description: Not found or not shareable }
+  /api/v1/repair-equipment:
+    get:
+      summary: Suggest manufacturers and models
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { in: query, name: category, schema: { type: string } }
+        - { in: query, name: manufacturer, schema: { type: string } }
+        - { in: query, name: query, schema: { type: string } }
+      responses:
+        '200': { description: Matching equipment suggestions }
+  /api/v1/leaderboard:
+    get:
+      summary: List community contribution points
+      responses:
+        '200': { description: Up to 50 ranked contributors }
+  /api/v1/me/activity:
+    get:
+      summary: Get personal contribution activity
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200': { description: Own report, review and reputation totals }
+        '401': { description: Sign in required }
+  /api/v1/me/reviews:
+    get:
+      summary: List assigned review tasks
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200': { description: Current user's review assignments }
+  /api/v1/me/reviews/refresh:
+    post:
+      summary: Refresh review assignments
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200': { description: Assignment refresh completed }
+  /api/v1/me/reviews/{assignmentId}:
+    post:
+      summary: Submit a structured peer assessment
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { in: path, name: assignmentId, required: true, schema: { type: string, pattern: '^[0-9a-f]{32}$' } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, description: Answers conform to the workflow review rubric and include reasoning. }
+      responses:
+        '200': { description: Assessment recorded }
+        '401': { description: Sign in required }
+  /api/v1/me/submissions:
+    get:
+      summary: List the signed-in user's reports and drafts
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200': { description: Own submissions and statuses }
+  /api/v1/me/submissions/{submissionId}:
+    get:
+      summary: Get one of the signed-in user's reports
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { in: path, name: submissionId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Own report detail }
+        '404': { description: Not found }
+    put:
+      summary: Save or update a repair draft
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { in: path, name: submissionId, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, description: YAML repair_case fields, content_language and review consent }
+      responses:
+        '200': { description: Draft saved }
+  /api/v1/me/submissions/{submissionId}/submit:
+    post:
+      summary: Submit a saved repair report for review
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { in: path, name: submissionId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Report submitted }
+  /api/v1/me/submissions/{submissionId}/revision:
+    post:
+      summary: Start a revision after clarification
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { in: path, name: submissionId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Revision draft started }
+  /api/v1/admin/overview:
+    get:
+      summary: Get admin data overview
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200': { description: Admin overview }
+        '403': { description: Admin access required }
+  /api/v1/admin/submissions:
+    get:
+      summary: Search submissions as an administrator
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { in: query, name: cursor, schema: { type: string } }
+        - { in: query, name: status, schema: { type: string } }
+        - { in: query, name: type, schema: { type: string } }
+        - { in: query, name: detail, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Admin submission results }
+        '403': { description: Admin access required }
+  /api/v1/admin/submissions/{submissionId}:
+    get:
+      summary: Inspect a submission as an administrator
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { in: path, name: submissionId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Submission detail }
+        '403': { description: Admin access required }
+  /api/v1/admin/export:
+    get:
+      summary: Export permitted records as CSV
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { in: query, name: scope, schema: { type: string, enum: [community, internal] } }
+      responses:
+        '200': { description: CSV export }
+        '403': { description: Admin access required }
+  /api/v1/tasks:
+    post:
+      summary: Submit an AI diagnosis for independent review
+      description: Creates a private diagnosis review task. Supply a stable Idempotency-Key so retries do not create duplicates. Personal and confidential details are rejected.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [schema_version, content_language, equipment_category, symptoms, proposed_diagnosis]
+              properties:
+                schema_version: { type: integer, example: 1 }
+                content_language: { type: string, example: en }
+                required_reviews: { type: integer, enum: [2, 3], default: 2 }
+                equipment_category: { type: string, description: Use a category ID configured for the platform }
+                symptoms: { type: string }
+                proposed_diagnosis: { type: string }
+                supporting_evidence: { type: string }
+                recommended_next_steps: { type: string }
+      responses:
+        '201':
+          description: Task accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  status: { type: string, example: pending }
+                  created_at: { type: string, format: date-time }
+        '401': { description: Missing or invalid bearer key }
+        '409': { description: Idempotency key reused with different content }
+        '422': { description: Invalid fields or private context detected }
+        '429': { description: Client rate limit exceeded }
+  /api/v1/tasks/{taskId}:
+    get:
+      summary: Get task status and completed expert assessments
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: taskId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Task and aggregate review result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  workflow_type: { type: string, enum: [diagnosis_review] }
+                  content_language: { type: string }
+                  status: { type: string, enum: [pending, in_review, needs_clarification, disputed, peer_reviewed, rejected, inconclusive] }
+                  review_counts: { type: object, properties: { required: { type: integer }, assigned: { type: integer }, completed: { type: integer } } }
+                  aggregate: { type: object, description: Aggregated assessment, disagreement, safety and clarification indicators }
+                  reviews: { type: array, items: { type: object, description: Individual rubric answers and redacted reasoning } }
+                  created_at: { type: string, format: date-time }
+                  updated_at: { type: string, format: date-time }
+        '401': { description: Missing or invalid bearer key }
+        '404': { description: Task not found for this client }
+        '429': { description: Client rate limit exceeded }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-ekn_session
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: EKN API key

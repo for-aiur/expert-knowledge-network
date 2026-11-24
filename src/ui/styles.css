@@ -64,7 +64,6 @@ nav a {
 }
 nav a svg { flex: none; inline-size: 19px; block-size: 19px; }
 nav a[aria-current="page"], nav a:hover { background: var(--teal-light); color: #9be5d8; }
-nav a[href="/"] { display: none; }
 nav:has(.admin-link) { grid-template-columns: repeat(6,minmax(0,1fr)); }
 main.frame { padding-block: clamp(1rem, 4vw, 3rem) calc(6rem + env(safe-area-inset-bottom)); }
 .panel, .hero { border: 1px solid var(--line); border-radius: 1rem; box-shadow: 0 8px 28px #03091250; }
