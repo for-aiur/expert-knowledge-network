@@ -1,0 +1,35 @@
+required:
+  en: This field is required.
+  de: Dieses Feld ist erforderlich.
+  tr: Bu alan zorunludur.
+  pl: To pole jest wymagane.
+  ru: Заполните это поле.
+  ar: هذا الحقل مطلوب.
+type:
+  en: Enter text or choose an option.
+  de: Geben Sie Text ein oder wählen Sie eine Option.
+  tr: Metin girin veya bir seçenek seçin.
+  pl: Wpisz tekst lub wybierz opcję.
+  ru: Введите текст или выберите вариант.
+  ar: أدخل نصًا أو اختر خيارًا.
+option:
+  en: Choose a listed option.
+  de: Wählen Sie eine Option aus der Liste.
+  tr: Listeden bir seçenek seçin.
+  pl: Wybierz opcję z listy.
+  ru: Выберите вариант из списка.
+  ar: اختر خيارًا من القائمة.
+length:
+  en: This entry is too long.
+  de: Diese Eingabe ist zu lang.
+  tr: Bu giriş çok uzun.
+  pl: Ten wpis jest za długi.
+  ru: Запись слишком длинная.
+  ar: هذا الإدخال طويل جدًا.
+unexpected:
+  en: Send only fields defined by this form.
+  de: Senden Sie nur Felder, die in diesem Formular definiert sind.
+  tr: Yalnızca bu formda tanımlanan alanları gönderin.
+  pl: Prześlij tylko pola zdefiniowane w tym formularzu.
+  ru: Отправляйте только поля этой формы.
+  ar: أرسل الحقول المحددة في هذا النموذج فقط.

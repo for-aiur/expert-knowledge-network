@@ -1,0 +1,73 @@
+type: diagnosis_review
+version: 1
+title:
+  en: Diagnosis review
+  de: Diagnoseprüfung
+  tr: Tanı incelemesi
+  pl: Ocena diagnozy
+  ru: Проверка диагноза
+  ar: مراجعة التشخيص
+fields:
+  - name: equipment_category
+    label:
+      en: Equipment category
+      de: Gerätekategorie
+      tr: Ekipman kategorisi
+      pl: Kategoria sprzętu
+      ru: Категория оборудования
+      ar: فئة المعدات
+    type: select
+    required: true
+    options_from: categories
+  - name: symptoms
+    label:
+      en: Reported symptoms
+      de: Gemeldete Symptome
+      tr: Bildirilen belirtiler
+      pl: Zgłoszone objawy
+      ru: Описанные симптомы
+      ar: الأعراض المُبلّغ عنها
+    type: textarea
+    required: true
+  - name: proposed_diagnosis
+    label:
+      en: Proposed diagnosis
+      de: Vorgeschlagene Diagnose
+      tr: Önerilen tanı
+      pl: Proponowana diagnoza
+      ru: Предложенный диагноз
+      ar: التشخيص المقترح
+    type: textarea
+    required: true
+  - name: supporting_evidence
+    label:
+      en: Supporting evidence
+      de: Stützende Befunde
+      tr: Destekleyici bulgular
+      pl: Dowody potwierdzające
+      ru: Подтверждающие данные
+      ar: الأدلة المؤيدة
+    type: textarea
+review_questions:
+  - en: Does the evidence support the proposed diagnosis?
+    de: Stützen die Befunde die vorgeschlagene Diagnose?
+    tr: Bulgular önerilen tanıyı destekliyor mu?
+    pl: Czy dowody potwierdzają proponowaną diagnozę?
+    ru: Подтверждают ли данные предложенный диагноз?
+    ar: هل تدعم الأدلة التشخيص المقترح؟
+  - en: Which missing details could change the conclusion?
+    de: Welche fehlenden Angaben könnten die Schlussfolgerung ändern?
+    tr: Hangi eksik bilgiler sonucu değiştirebilir?
+    pl: Jakie brakujące informacje mogłyby zmienić wniosek?
+    ru: Какие недостающие сведения могли бы изменить вывод?
+    ar: ما التفاصيل الناقصة التي قد تغيّر الاستنتاج؟
+points:
+  submission: 0
+  review: 1
+description:
+  en: Describe the evidence for a later independent review.
+  de: Beschreiben Sie die Befunde für eine spätere unabhängige Prüfung.
+  tr: Daha sonra yapılacak bağımsız inceleme için bulguları açıklayın.
+  pl: Opisz ustalenia na potrzeby późniejszej niezależnej oceny.
+  ru: Опишите данные для последующей независимой проверки.
+  ar: صِف الأدلة تمهيدًا لمراجعة مستقلة لاحقًا.

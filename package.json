@@ -1,0 +1,31 @@
+{
+  "name": "expert-knowledge-network",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "config": "node scripts/compile-config.mjs",
+    "build": "npm run config && tsc --noEmit && vite build && wrangler deploy --dry-run --outdir .wrangler/build",
+    "dev": "npm run build && wrangler dev --local",
+    "db:migrate": "wrangler d1 migrations apply DB --local",
+    "test": "npm run build && node --test",
+    "test:browser": "node scripts/check-browser.mjs",
+    "seed:repairs": "node scripts/seed-repairs.mjs",
+    "test:repairs-browser": "node scripts/check-repairs-browser.mjs"
+  },
+  "dependencies": {
+    "lucide-react": "^1.79.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.23",
+    "@types/react-dom": "18.3.7",
+    "playwright": "^1.65.1",
+    "tailwindcss": "3.4.17",
+    "typescript": "5.8.3",
+    "vite": "5.4.21",
+    "wrangler": "3.114.17",
+    "yaml": "2.8.0"
+  }
+}

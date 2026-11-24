@@ -1,0 +1,224 @@
+type: repair_case
+version: 1
+title:
+  en: Repair case
+  de: Reparaturfall
+  tr: Onarım vakası
+  pl: Przypadek naprawy
+  ru: Случай ремонта
+  ar: حالة إصلاح
+fields:
+  - name: equipment_category
+    label:
+      en: Equipment category
+      de: Gerätekategorie
+      tr: Ekipman kategorisi
+      pl: Kategoria sprzętu
+      ru: Категория оборудования
+      ar: فئة المعدات
+    type: select
+    required: true
+    options_from: categories
+  - name: manufacturer
+    label:
+      en: Manufacturer
+      de: Hersteller
+      tr: Üretici
+      pl: Producent
+      ru: Производитель
+      ar: الشركة المصنّعة
+    type: text
+  - name: model
+    label:
+      en: Model
+      de: Modell
+      tr: Model
+      pl: Model
+      ru: Модель
+      ar: الطراز
+    type: text
+  - name: fault_code
+    label:
+      en: Fault code
+      de: Fehlercode
+      tr: Arıza kodu
+      pl: Kod błędu
+      ru: Код ошибки
+      ar: رمز العطل
+    type: text
+  - name: symptoms
+    label:
+      en: Symptoms
+      de: Symptome
+      tr: Belirtiler
+      pl: Objawy
+      ru: Симптомы
+      ar: الأعراض
+    type: textarea
+    required: true
+  - name: diagnostic_steps
+    label:
+      en: Diagnostic steps taken
+      de: Durchgeführte Diagnoseschritte
+      tr: Uygulanan tanı adımları
+      pl: Wykonane kroki diagnostyczne
+      ru: Выполненные шаги диагностики
+      ar: خطوات التشخيص المتخذة
+    type: textarea
+  - name: root_cause
+    label:
+      en: Root cause
+      de: Grundursache
+      tr: Kök neden
+      pl: Przyczyna źródłowa
+      ru: Первопричина
+      ar: السبب الجذري
+    type: textarea
+  - name: outcome
+    label:
+      en: Outcome
+      de: Ergebnis
+      tr: Sonuç
+      pl: Wynik
+      ru: Итог
+      ar: النتيجة
+    type: select
+    required: true
+    options:
+      - value: resolved
+        label:
+          en: Resolved
+          de: Behoben
+          tr: Çözüldü
+          pl: Rozwiązano
+          ru: Устранено
+          ar: تم الحل
+      - value: partially_resolved
+        label:
+          en: Partially resolved
+          de: Teilweise behoben
+          tr: Kısmen çözüldü
+          pl: Częściowo rozwiązano
+          ru: Частично устранено
+          ar: تم الحل جزئيًا
+      - value: unresolved
+        label:
+          en: Unresolved
+          de: Nicht behoben
+          tr: Çözülmedi
+          pl: Nie rozwiązano
+          ru: Не устранено
+          ar: لم يُحل
+  - name: resolution
+    label:
+      en: Resolution
+      de: Lösung
+      tr: Çözüm
+      pl: Rozwiązanie
+      ru: Способ устранения
+      ar: الحل
+    type: textarea
+    required_if:
+      field: outcome
+      in:
+        - resolved
+        - partially_resolved
+    description:
+      en: Required when the fault was resolved or partially resolved.
+      de: Erforderlich, wenn die Störung behoben oder teilweise behoben wurde.
+      tr: Arıza çözüldüyse veya kısmen çözüldüyse zorunludur.
+      pl: Wymagane, gdy problem rozwiązano całkowicie lub częściowo.
+      ru: Обязательно, если неисправность устранена полностью или частично.
+      ar: مطلوب إذا تم حل العطل كليًا أو جزئيًا.
+  - name: source_type
+    label:
+      en: How do you know about this case?
+      de: Woher kennen Sie diesen Fall?
+      tr: Bu vakayı nereden biliyorsunuz?
+      pl: Skąd znasz ten przypadek?
+      ru: Откуда вы знаете об этом случае?
+      ar: كيف عرفت بهذه الحالة؟
+    type: select
+    required: true
+    options:
+      - value: firsthand
+        label:
+          en: I worked on it myself
+          de: Ich habe selbst daran gearbeitet
+          tr: Kendim üzerinde çalıştım
+          pl: Pracowałem nad tym osobiście
+          ru: Я работал над этим лично
+          ar: عملت عليها بنفسي
+      - value: observed
+        label:
+          en: I observed the work directly
+          de: Ich habe die Arbeit direkt beobachtet
+          tr: Çalışmayı doğrudan gözlemledim
+          pl: Obserwowałem pracę bezpośrednio
+          ru: Я наблюдал за работой лично
+          ar: شاهدت العمل مباشرةً
+      - value: secondhand
+        label:
+          en: I learned about it secondhand
+          de: Ich habe aus zweiter Hand davon erfahren
+          tr: Başkasından öğrendim
+          pl: Znam przypadek z relacji innych
+          ru: Я узнал об этом от других
+          ar: عرفت بها من شخص آخر
+  - name: sharing_permission
+    label:
+      en: May this case be shared with the community after approval?
+      de: Darf der Fall nach Freigabe mit der Community geteilt werden?
+      tr: Onaydan sonra vaka toplulukla paylaşılsın mı?
+      pl: Czy po zatwierdzeniu można udostępnić przypadek społeczności?
+      ru: Можно поделиться случаем с сообществом после одобрения?
+      ar: هل تسمح بمشاركة الحالة مع المجتمع بعد الموافقة؟
+    type: select
+    required: true
+    options:
+      - value: private
+        label:
+          en: Keep it private
+          de: Privat halten
+          tr: Gizli tut
+          pl: Zachowaj jako prywatne
+          ru: Оставить закрытым
+          ar: أبقها خاصة
+      - value: community
+        label:
+          en: Allow community sharing
+          de: Teilen mit der Community erlauben
+          tr: Toplulukla paylaşıma izin ver
+          pl: Zezwól na udostępnienie społeczności
+          ru: Разрешить публикацию в сообществе
+          ar: اسمح بالمشاركة مع المجتمع
+    description:
+      en: This permission does not grant commercial usage rights.
+      de: Die Freigabe erlaubt keine kommerzielle Nutzung.
+      tr: Bu izin ticari kullanım hakkı vermez.
+      pl: Zgoda nie obejmuje wykorzystania komercyjnego.
+      ru: Разрешение не даёт права на коммерческое использование.
+      ar: هذا الإذن لا يشمل الاستخدام التجاري.
+review_questions:
+  - en: Are the symptoms and outcome clear?
+    de: Sind Symptome und Ergebnis klar?
+    tr: Belirtiler ve sonuç açık mı?
+    pl: Czy objawy i wynik są jasne?
+    ru: Ясно ли описаны симптомы и итог?
+    ar: هل الأعراض والنتيجة واضحتان؟
+  - en: Do the diagnostic steps support the stated root cause?
+    de: Stützen die Diagnoseschritte die genannte Grundursache?
+    tr: Tanı adımları belirtilen kök nedeni destekliyor mu?
+    pl: Czy kroki diagnostyczne potwierdzają wskazaną przyczynę?
+    ru: Подтверждают ли шаги диагностики указанную первопричину?
+    ar: هل تدعم خطوات التشخيص السبب الجذري المذكور؟
+points:
+  submission: 1
+  review: 1
+description:
+  en: Describe an equipment fault and its outcome.
+  de: Beschreiben Sie eine Gerätestörung und das Ergebnis.
+  tr: Bir ekipman arızasını ve sonucunu açıklayın.
+  pl: Opisz awarię sprzętu i jej wynik.
+  ru: Опишите неисправность оборудования и её исход.
+  ar: صِف عطلًا في المعدات ونتيجته.

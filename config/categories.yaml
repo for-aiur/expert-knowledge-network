@@ -1,0 +1,48 @@
+- value: heating_boilers
+  label:
+    en: Heating & Boilers
+    de: Heizung & Heizkessel
+    tr: Isıtma ve kazanlar
+    pl: Ogrzewanie i kotły
+    ru: Отопление и котлы
+    ar: التدفئة والغلايات
+- value: hvac
+  label:
+    en: HVAC
+    de: Heizung, Lüftung & Klima
+    tr: Isıtma, havalandırma ve klima
+    pl: Ogrzewanie, wentylacja i klimatyzacja
+    ru: Отопление, вентиляция и кондиционирование
+    ar: التدفئة والتهوية وتكييف الهواء
+- value: electrical_controls
+  label:
+    en: Electrical & Controls
+    de: Elektrik & Steuerung
+    tr: Elektrik ve kontrol
+    pl: Elektryka i sterowanie
+    ru: Электрика и управление
+    ar: الكهرباء والتحكم
+- value: plumbing
+  label:
+    en: Plumbing
+    de: Sanitärtechnik
+    tr: Su tesisatı
+    pl: Instalacje wodno-kanalizacyjne
+    ru: Сантехника
+    ar: السباكة
+- value: industrial_equipment
+  label:
+    en: Industrial Equipment
+    de: Industrieanlagen
+    tr: Endüstriyel ekipman
+    pl: Sprzęt przemysłowy
+    ru: Промышленное оборудование
+    ar: المعدات الصناعية
+- value: other
+  label:
+    en: Other
+    de: Sonstiges
+    tr: Diğer
+    pl: Inne
+    ru: Другое
+    ar: أخرى
