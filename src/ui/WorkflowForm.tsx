@@ -172,7 +172,7 @@ export function WorkflowForm({ workflow, signedIn, draft }: { workflow: Workflow
     <progress className="repair-progress-bar" value={step + 1} max={steps.length} aria-label={t('repairProgress')} />
     <section className="repair-step" aria-labelledby="repair-step-heading">
       <h2 id="repair-step-heading" tabIndex={-1}>{t(current.title)}</h2>
-      {step === 1 && <p className="note">{t('synthetic')}</p>}
+      {step === 1 && <p className="privacy-reminder">{t('privacyReminder')}</p>}
       {(hasIssues || Boolean(errors.form)) && <p className="error" role="alert">{errors.form ?? t('highlight')}</p>}
       <fieldset disabled={busy} className="workflow-fields">
         {main.map(renderField)}

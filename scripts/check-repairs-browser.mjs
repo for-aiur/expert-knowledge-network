@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { mkdir } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { chromium } from 'playwright';
 
 const base = process.env.EKN_URL ?? 'http://localhost:18788';
 execFileSync(process.execPath, ['scripts/seed-repairs.mjs'], { env: { ...process.env, EKN_URL: base } });
 const browser = await chromium.launch({ channel: process.env.EKN_BROWSER ?? 'chrome' });
 const password = 'synthetic-repair-demo';
+const captures = resolve(process.env.EKN_SCREENSHOTS ?? '.wrangler/screenshots');
+await mkdir(captures, { recursive: true });
 
 async function login(name, locale, width = 390) {
   const context = await browser.newContext({
@@ -16,6 +20,16 @@ async function login(name, locale, width = 390) {
   await page.locator('[name=email]').fill(name + '@repair.example.invalid');
   await page.locator('[name=password]').fill(password);
   await page.locator('main form button[type=submit], main form button:not([type])').first().click();
+  await page.locator('.identity').waitFor();
+  await page.goto(base + '/');
+  await page.locator('.dashboard-heading').waitFor();
+  await page.locator('.dashboard-stats article').nth(3).waitFor();
+  assert.equal(await page.locator('.dashboard-stats article').count(), 4);
+  assert.equal(await page.locator('.achievement-list .achievement-item').count(), 1);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
+  if (width === 390 && locale === 'ar') await page.screenshot({ path: resolve(captures, 'dashboard-ar-390.png'), fullPage: true });
+  if (width === 1440 && locale === 'en') await page.screenshot({ path: resolve(captures, 'dashboard-en-1440.png'), fullPage: true });
+  await page.goto(base + '/profile');
   await page.locator('.identity').waitFor();
   return page;
 }
@@ -41,7 +55,11 @@ try {
   const author = await login('author', 'ar');
   assert.equal(await author.locator('html').getAttribute('dir'), 'rtl');
   await author.goto(base + '/cases');
+  const drafts = author.waitForResponse(response => response.url().includes('/api/v1/me/submissions?') &&
+    response.url().includes('status=draft') && response.status() === 200);
   await author.getByRole('button', { name: 'مسودة', exact: true }).click();
+  await drafts;
+  await author.locator('.record-link').first().waitFor();
   await author.locator('.record-link').first().click();
   assert.equal(await author.getByText('تنزيل كتقرير', { exact: false }).first().getAttribute('aria-disabled'), 'true');
   await author.getByRole('link', { name: 'تعديل المسودة' }).click();
@@ -76,6 +94,8 @@ try {
   await author.locator('.ranking-list li').first().waitFor();
   assert.equal(await author.locator('.ranking-list li').count(), 4);
   await third.goto(base + '/profile');
+  await third.locator('.achievement-full .achievement-item').first().waitFor();
+  assert.equal(await third.locator('.achievement-full .achievement-item').count(), 5);
   await third.locator('.choice').nth(1).click();
   await third.locator('main form button').first().click();
   await third.locator('main form [role=status]').waitFor();

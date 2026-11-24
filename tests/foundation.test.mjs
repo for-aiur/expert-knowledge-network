@@ -312,6 +312,16 @@ test('repair drafts, blind randomized review, concurrent retries, privacy and po
     assert.equal(data.history.length, 1);
   }
   assert.equal((await api('/me/activity', author)).data.reputation.peer_reviewed_repairs, 1);
+  const authorActivity = (await api('/me/activity', author)).data;
+  assert.deepEqual(authorActivity.metrics, {
+    reports: 1, peer_reviewed_repairs: 1, completed_reviews: 0, qualified_reviews: 0,
+    outstanding_reviews: 0, clarifications: 0,
+  });
+  for (const reviewer of [first, second, third]) {
+    const metrics = (await api('/me/activity', reviewer)).data.metrics;
+    assert.equal(metrics.completed_reviews, 1);
+    assert.equal(metrics.qualified_reviews, 1);
+  }
   assert.ok((await api('/leaderboard')).data.items.every(item =>
     Object.keys(item).sort().join(',') === 'nickname,points'));
 

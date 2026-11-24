@@ -1,4 +1,4 @@
-import { Activity, CaseDetail, CaseList, Leaderboard, ReviewQueue } from './RepairScreens';
+import { Activity, CaseDetail, CaseList, Home, Leaderboard, ReviewQueue } from './RepairScreens';
 import type { Repair } from '../repair';
 import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -75,16 +75,7 @@ function App() {
     </header>
     <main className="frame">
       {error && <p role="alert" className="error">{t(error)}</p>}
-      {path === '/' && <section className="hero">
-        <div className="hero-body">
-          <h1>{t('hero')}</h1>
-          <p>{t('intro')}</p>
-          <div className="actions"><a className="button" href="/submit">{t('newRepair')}</a>
-            <a className="button secondary" href="/profile">{t(user ? 'openProfile' : 'join')}</a>
-            <a className="button secondary" href="/community">{t('communityCases')}</a></div>
-        </div>
-        <div className="hero-mark" aria-hidden="true"><Icon name="mark" /></div>
-      </section>}
+      {path === '/' && <Home signedIn={!loading && Boolean(user)} nickname={user?.nickname} userId={user?.id} />}
       {path === '/submit' && <section className="panel repair-panel">
         <h1><span className="identity-icon"><Icon name="submit" /></span>{t('newRepair')}</h1>
         <p>{t('repairHelp')}</p>

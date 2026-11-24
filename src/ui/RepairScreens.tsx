@@ -12,6 +12,7 @@ type CaseView = Pick<Repair, 'content_language' | 'schema_version' | 'values'>;
 function useData<T>(path: string) {
   const [state, setState] = useState<{ data?: T; error?: Message }>({});
   useEffect(() => {
+    if (!path) return;
     let ignore = false;
     setState({});
     request<T>(path).then(data => { if (!ignore) setState({ data }); })
@@ -284,23 +285,136 @@ export function Activity() {
   const { locale, t } = useLanguage();
   const { data, error } = useData<{
     points: number; reputation: { peer_reviewed_repairs: number };
+    metrics: { reports: number; peer_reviewed_repairs: number; completed_reviews: number; qualified_reviews: number; outstanding_reviews: number; clarifications: number };
     history: { contribution: number; points: number; created_at: number; reversed: number }[];
   }>('/v1/me/activity');
   const number = new Intl.NumberFormat(locale);
   const date = new Intl.DateTimeFormat(locale, { dateStyle: 'medium' });
-  return <section className="account-actions activity">
+  return <section id="achievements" className="account-actions activity">
     <h2>{t('activity')}</h2>
-    <div className="actions"><a href="/cases">{t('reports')}</a><a href="/reviews">{t('reviews')}</a></div>
     {!data ? <Feedback error={error} /> : <>
-      <dl className="case-facts">
+      <dl className="activity-stats">
+        <div><dt>{t('reportsStat')}</dt><dd>{number.format(data.metrics.reports)}</dd></div>
+        <div><dt>{t('peerReviewedStat')}</dt><dd>{number.format(data.reputation.peer_reviewed_repairs)}</dd></div>
+        <div><dt>{t('completedReviews')}</dt><dd>{number.format(data.metrics.completed_reviews)}</dd></div>
         <div><dt>{t('points')}</dt><dd>{number.format(data.points)}</dd></div>
-        <div><dt>{t('reputation')}</dt><dd>{number.format(data.reputation.peer_reviewed_repairs)}</dd></div>
       </dl>
+      <AchievementCollection metrics={data.metrics} full />
       {data.history.length > 0 && <ul className="record-list">{data.history.map((entry, index) =>
         <li className="review-card" key={index}>
           {t(entry.contribution ? 'contributionAward' : 'reviewAward')} · {number.format(entry.points)} · {date.format(entry.created_at * 1000)}
           {Boolean(entry.reversed) && <span className="status-chip">{t('reversed')}</span>}
         </li>)}</ul>}
+    </>}
+  </section>;
+}
+
+type ActivityData = {
+  points: number;
+  reputation: { peer_reviewed_repairs: number };
+  metrics: { reports: number; peer_reviewed_repairs: number; completed_reviews: number; qualified_reviews: number; outstanding_reviews: number; clarifications: number };
+  history: { contribution: number; points: number; created_at: number; reversed: number }[];
+};
+
+const achievements = [
+  { id: 'firstContribution', icon: 'contribution', measure: 'peerReviewed' as const, target: 1 },
+  { id: 'knowledgeBuilder', icon: 'equipment', measure: 'peerReviewed' as const, target: 5 },
+  { id: 'trustedContributor', icon: 'achievement', measure: 'peerReviewed' as const, target: 20 },
+  { id: 'expertReviewer', icon: 'reviewer', measure: 'reviews' as const, target: 10 },
+  { id: 'dedicatedExpert', icon: 'progress', measure: 'reviews' as const, target: 50 },
+] as const;
+
+function AchievementCollection({ metrics, full = false }: { metrics: ActivityData['metrics']; full?: boolean }) {
+  const { t, locale } = useLanguage();
+  const number = new Intl.NumberFormat(locale);
+  const collection = achievements.map(item => ({ ...item,
+    value: item.measure === 'peerReviewed' ? metrics.peer_reviewed_repairs : metrics.qualified_reviews,
+  }));
+  const visible = full ? collection : collection.filter(item => item.value >= item.target).slice(0, 2)
+    .concat(collection.filter(item => item.value < item.target).slice(0, 1));
+  return <section className={'achievement-section' + (full ? ' achievement-full' : '')} aria-labelledby="achievement-heading">
+    <div className="section-heading">
+      <div><p className="eyebrow">{t('nextMilestone')}</p><h2 id="achievement-heading">{t('achievements')}</h2></div>
+      {!full && <a href="/profile#achievements">{t('viewAll')}</a>}
+    </div>
+    {!full && collection.every(item => item.value === 0) && <p className="achievement-intro">{t('emptyAchievement')}</p>}
+    <ul className="achievement-list">
+      {visible.map(item => {
+        const unlocked = item.value >= item.target;
+        const IconName = item.icon;
+        return <li className="achievement-item" data-earned={unlocked} key={item.id}>
+          <span className="achievement-icon"><Icon name={IconName} /></span>
+          <span className="achievement-copy"><strong>{t(item.id as Message)}</strong>
+            <small>{t((item.id + 'Desc') as Message)}</small></span>
+          <span className="achievement-state">{unlocked ? t('earned') : `${number.format(Math.min(item.value, item.target))} / ${number.format(item.target)}`}</span>
+          {!unlocked && <progress max={item.target} value={Math.min(item.value, item.target)} aria-label={`${t('progress')}: ${t(item.id as Message)}`} />}
+        </li>;
+      })}
+    </ul>
+    <p className="recognition-note">{t('recognitionNote')}</p>
+  </section>;
+}
+
+export function Home({ signedIn, nickname, userId }: { signedIn: boolean; nickname?: string; userId?: string }) {
+  const { t, locale } = useLanguage();
+  const { data, error } = useData<ActivityData>(signedIn ? '/v1/me/activity' : '');
+  const [toast, setToast] = useState('');
+  const number = new Intl.NumberFormat(locale);
+  useEffect(() => {
+    if (!data || !userId) return;
+    const current = achievements.filter(item =>
+      (item.measure === 'peerReviewed' ? data.metrics.peer_reviewed_repairs : data.metrics.qualified_reviews) >= item.target
+    ).map(item => item.id);
+    try {
+      const key = `ekn-earned-milestones:${userId}`;
+      const prior = localStorage.getItem(key);
+      localStorage.setItem(key, JSON.stringify(current));
+      if (prior === null) return;
+      const known = JSON.parse(prior) as unknown;
+      if (!Array.isArray(known)) return;
+      const unlocked = current.find(id => !known.includes(id));
+      if (unlocked) {
+        setToast(`${t('achievementUnlocked')}: ${t(unlocked as Message)}`);
+        const timer = window.setTimeout(() => setToast(''), 5000);
+        return () => window.clearTimeout(timer);
+      }
+    } catch {
+      // Achievement status remains visible in the collection if storage is disabled.
+    }
+  }, [data, t, userId]);
+  if (!signedIn) return <section className="hero">
+    <div className="hero-body">
+      <p className="eyebrow">{t('communityCases')}</p><h1>{t('hero')}</h1><p>{t('intro')}</p>
+      <div className="actions"><a className="button" href="/profile">{t('join')}</a>
+        <a className="button secondary" href="/community">{t('communityCases')}</a></div>
+    </div><div className="hero-mark" aria-hidden="true"><Icon name="mark" /></div>
+  </section>;
+  return <section className="dashboard">
+    {toast && <p className="achievement-toast" role="status"><Icon name="achievement" />{toast}</p>}
+    <header className="dashboard-heading">
+      <div><p className="eyebrow">{t('dashboard')}</p><h1><bdi>{nickname}</bdi></h1><p>{t('dashboardIntro')}</p></div>
+    </header>
+    {data && data.metrics.clarifications > 0 && <a className="attention-banner" href="/cases?status=needs_clarification">
+      <Icon name="problem" /><span><strong>{number.format(data.metrics.clarifications)} · {t('needs_clarification')}</strong><small>{t('attention')}</small></span><Icon name="next" />
+    </a>}
+    <div className="dashboard-actions">
+      <a className="action-tile action-primary" href="/submit"><span className="tile-icon"><Icon name="submit" /></span><span><strong>{t('shareRepair')}</strong><small>{t('shareRepairHelp')}</small></span><Icon name="next" /></a>
+      <a className="action-tile" href="/reviews"><span className="tile-icon tile-blue"><Icon name="reviews" /></span><span><strong>{t('openQueue')}</strong><small>{t('openQueueHelp')}</small></span>{data && data.metrics.outstanding_reviews > 0 && <b className="task-count">{number.format(data.metrics.outstanding_reviews)}</b>}</a>
+      <a className="action-tile" href="/cases"><span className="tile-icon tile-copper"><Icon name="reports" /></span><span><strong>{t('reports')}</strong><small>{t('myReportsHelp')}</small></span><Icon name="next" /></a>
+    </div>
+    {!data ? <Feedback error={error} /> : <>
+      <section className="dashboard-stats" aria-label={t('activity')}>
+        <article><span className="stat-mark"><Icon name="reports" /></span><div><strong>{number.format(data.metrics.reports)}</strong><small>{t('reportsStat')}</small></div></article>
+        <article><span className="stat-mark stat-green"><Icon name="done" /></span><div><strong>{number.format(data.reputation.peer_reviewed_repairs)}</strong><small>{t('peerReviewedStat')}</small></div></article>
+        <article><span className="stat-mark stat-blue"><Icon name="reviewer" /></span><div><strong>{number.format(data.metrics.completed_reviews)}</strong><small>{t('completedReviews')}</small></div></article>
+        <article><span className="stat-mark stat-gold"><Icon name="achievement" /></span><div><strong>{number.format(data.points)}</strong><small>{t('points')}</small></div></article>
+      </section>
+      <div className="dashboard-lower">
+        <AchievementCollection metrics={data.metrics} />
+        <aside className="dashboard-note"><p className="eyebrow">{t('profile')}</p><strong>{t('expertise')}</strong>
+          <p>{t('expertiseHelp')}</p><a href="/profile">{t('profile')}</a>
+        </aside>
+      </div>
     </>}
   </section>;
 }

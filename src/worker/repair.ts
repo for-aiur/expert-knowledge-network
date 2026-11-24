@@ -275,15 +275,44 @@ function qualifiedReviewPoints(type: WorkflowType, version: number, reasoning: s
 }
 
 async function activity(db: Database, user: string): Promise<Result> {
-  const total = await db.prepare(`SELECT coalesce(sum(p.points),0) AS points FROM points_ledger p
-    LEFT JOIN point_reversals x ON x.entry_id = p.id WHERE p.user_id = ? AND x.entry_id IS NULL`)
-    .bind(user).first<{ points: number }>();
-  const { results } = await db.prepare(`SELECT p.submission_id IS NOT NULL AS contribution, p.points, p.created_at,
+  const [total, history, metrics] = await Promise.all([
+    db.prepare(`SELECT coalesce(sum(p.points),0) AS points FROM points_ledger p
+      LEFT JOIN point_reversals x ON x.entry_id = p.id WHERE p.user_id = ? AND x.entry_id IS NULL`)
+      .bind(user).first<{ points: number }>(),
+    db.prepare(`SELECT p.submission_id IS NOT NULL AS contribution, p.points, p.created_at,
       x.entry_id IS NOT NULL AS reversed FROM points_ledger p LEFT JOIN point_reversals x ON x.entry_id = p.id
-    WHERE p.user_id = ? ORDER BY p.created_at DESC, p.id LIMIT 50`).bind(user).all();
-  const reputation = await db.prepare(`SELECT count(*) AS peer_reviewed_repairs FROM workflow_submissions
-    WHERE user_id = ? AND workflow_type = 'repair_case' AND review_status = 'approved'`).bind(user).first();
-  return { data: { points: total?.points ?? 0, history: results, reputation } };
+      WHERE p.user_id = ? ORDER BY p.created_at DESC, p.id LIMIT 50`).bind(user).all(),
+    db.prepare(`WITH RECURSIVE repair_lineage(id, root_id) AS (
+        SELECT id, id FROM workflow_submissions WHERE user_id = ? AND workflow_type = 'repair_case' AND previous_revision_id IS NULL
+        UNION ALL
+        SELECT child.id, parent.root_id FROM workflow_submissions child
+          JOIN repair_lineage parent ON child.previous_revision_id = parent.id
+          WHERE child.user_id = ? AND child.workflow_type = 'repair_case'
+      ) SELECT
+      (SELECT count(*) FROM workflow_submissions WHERE user_id = ? AND workflow_type = 'repair_case') AS reports,
+      (SELECT count(DISTINCT l.root_id) FROM repair_lineage l JOIN workflow_submissions reviewed ON reviewed.id = l.id
+        WHERE reviewed.review_status = 'approved') AS peer_reviewed_repairs,
+      (SELECT count(*) FROM review_assignments WHERE reviewer_id = ? AND status = 'completed') AS completed_reviews,
+      (SELECT count(DISTINCT p.review_id) FROM points_ledger p LEFT JOIN point_reversals x ON x.entry_id = p.id
+        WHERE p.user_id = ? AND p.review_id IS NOT NULL AND x.entry_id IS NULL) AS qualified_reviews,
+      (SELECT count(*) FROM review_assignments WHERE reviewer_id = ? AND status = 'assigned') AS outstanding_reviews,
+      (SELECT count(*) FROM workflow_submissions WHERE user_id = ? AND workflow_type = 'repair_case'
+        AND assessment_override = 'needs_clarification'
+        AND NOT EXISTS (SELECT 1 FROM workflow_submissions next WHERE next.previous_revision_id = workflow_submissions.id)
+        AND NOT EXISTS (SELECT 1 FROM repair_drafts next WHERE next.previous_revision_id = workflow_submissions.id)) AS clarifications`)
+      .bind(user, user, user, user, user, user, user).first<{
+        reports: number; peer_reviewed_repairs: number; completed_reviews: number; qualified_reviews: number;
+        outstanding_reviews: number; clarifications: number;
+      }>(),
+  ]);
+  return { data: {
+    points: total?.points ?? 0, history: history.results,
+    reputation: { peer_reviewed_repairs: metrics?.peer_reviewed_repairs ?? 0 },
+    metrics: { reports: metrics?.reports ?? 0, peer_reviewed_repairs: metrics?.peer_reviewed_repairs ?? 0,
+      completed_reviews: metrics?.completed_reviews ?? 0,
+      qualified_reviews: metrics?.qualified_reviews ?? 0,
+      outstanding_reviews: metrics?.outstanding_reviews ?? 0, clarifications: metrics?.clarifications ?? 0 },
+  } };
 }
 
 async function equipmentSuggestions(db: Database, url: URL, user: string | null): Promise<Result> {

@@ -4,8 +4,7 @@ const base = new URL(process.env.EKN_URL ?? 'http://localhost:8788');
 const inviteCode = process.env.EKN_BETA_INVITE_CODE;
 const clientKey = process.env.EKN_CLIENT_KEY;
 const local = ['localhost','127.0.0.1','[::1]'].includes(base.hostname);
-const confirmedRemoteDemo = base.protocol === 'https:' && base.hostname.endsWith('.workers.dev') && process.env.EKN_SEED_SYNTHETIC === 'YES';
-if (!local && !confirmedRemoteDemo) throw new Error('Seed only localhost or explicitly confirmed workers.dev with EKN_SEED_SYNTHETIC=YES.');
+if (!local) throw new Error('Sample fixtures may only be created on localhost.');
 if (!inviteCode) throw new Error('Set EKN_BETA_INVITE_CODE to the local invitation value.');
 if (!clientKey) throw new Error('Set EKN_CLIENT_KEY using scripts/provision-local-client.mjs first.');
 
@@ -20,10 +19,10 @@ async function api(path, { method = 'GET', body, cookie, headers = {} } = {}) {
 }
 
 const people = [
-  { name:'author', email:'author@demo.example.invalid', nickname:'Synthetic Demo Author', expertise:[] },
-  { name:'reviewer-a', email:'reviewer-a@demo.example.invalid', nickname:'Synthetic Reviewer A', expertise:['hvac','heating_boilers','industrial_equipment'] },
-  { name:'reviewer-b', email:'reviewer-b@demo.example.invalid', nickname:'Synthetic Reviewer B', expertise:['hvac','heating_boilers','industrial_equipment'] },
-  { name:'reviewer-c', email:'reviewer-c@demo.example.invalid', nickname:'Synthetic Reviewer C', expertise:['hvac','heating_boilers','industrial_equipment'] },
+  { name:'author', email:'author@demo.example.invalid', nickname:'Demo Contributor', expertise:[] },
+  { name:'reviewer-a', email:'reviewer-a@demo.example.invalid', nickname:'Review Participant A', expertise:['hvac','heating_boilers','industrial_equipment'] },
+  { name:'reviewer-b', email:'reviewer-b@demo.example.invalid', nickname:'Review Participant B', expertise:['hvac','heating_boilers','industrial_equipment'] },
+  { name:'reviewer-c', email:'reviewer-c@demo.example.invalid', nickname:'Review Participant C', expertise:['hvac','heating_boilers','industrial_equipment'] },
 ];
 const password = 'synthetic-demo-account-password';
 const sessions = new Map();

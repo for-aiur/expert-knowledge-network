@@ -5,6 +5,7 @@ import { chromium } from 'playwright';
 
 const base = process.env.EKN_URL ?? 'http://localhost:8787';
 const captures = resolve(process.env.EKN_SCREENSHOTS ?? '.wrangler/screenshots');
+const englishMessages = JSON.parse(await readFile(new URL('../src/i18n/en.json', import.meta.url)));
 const config = JSON.parse(await readFile(new URL('../src/generated/workflows.json', import.meta.url)));
 const locales = ['en', 'de', 'tr', 'pl', 'ru', 'ar'];
 const widths = [360, 375, 390, 430, 768, 1440];
@@ -144,6 +145,14 @@ try {
   await page.getByRole('button', { name: 'Zaloguj się', exact: true }).click();
   await page.getByRole('heading', { name: 'Profil' }).waitFor();
   assert.equal(await page.locator('.choice input:checked').count(), 1);
+  await page.locator('header select').selectOption('en');
+  await page.goto(base + '/');
+  await page.locator('.dashboard-stats article').nth(3).waitFor();
+  const emptyMetric = await page.locator('.dashboard-stats article').first().innerText();
+  assert.ok(emptyMetric.includes('0') && emptyMetric.includes(englishMessages.reportsStat));
+  await page.screenshot({ path: resolve(captures, 'dashboard-en-empty-390.png'), fullPage: true });
+  await page.goto(base + '/profile');
+  await page.locator('.identity').waitFor();
   await page.locator('header select').selectOption('ar');
   await page.locator('nav a[href="/submit"]').click();
   const next = page.locator('[data-action=next-step]');
