@@ -182,9 +182,6 @@ details ul { list-style: disc; padding-inline-start: 1.4rem; }
 .repair-step h2:focus { outline: none; }
 .repair-step fieldset { padding: 0; }
 .repair-step .note { margin-block-end: 1rem; }
-.repair-details { margin: 0; padding-inline: .75rem; border: 1px solid var(--line); border-radius: .55rem; }
-.repair-details[open] { padding-block-end: .75rem; }
-.repair-details .stack { margin-block-start: .25rem; }
 .repair-actions { border-block-start: 1px solid var(--line); padding-block-start: .85rem; }
 .repair-actions :is(button, a), .notice[role="status"] { gap: .45rem; }
 .notice[role="status"] { display: flex; align-items: center; }

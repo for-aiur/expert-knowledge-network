@@ -4,7 +4,6 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { fieldLimit, fieldRequired, validateFields, type Field, type Workflow } from '../workflows';
 import { message, request } from './api';
 import { useLanguage } from './Language';
-import { localeNames } from '../i18n/messages';
 import type { Repair } from '../repair';
 import type { Message } from '../i18n/messages';
 
@@ -19,8 +18,6 @@ function fieldStep(name: string) {
   return index === -1 ? steps.length - 1 : index;
 }
 
-const disclosed = new Set(['fault_code', 'diagnostic_steps', 'root_cause']);
-
 export function WorkflowForm({ workflow, signedIn, draft }: { workflow: Workflow; signedIn: boolean; draft?: Repair }) {
   const { locale, t, l } = useLanguage();
   const [values, setValues] = useState<Record<string, string>>(() => ({ ...draft?.values, sharing_permission: draft?.values.sharing_permission === 'community' ? 'community' : 'private' }));
@@ -31,7 +28,7 @@ export function WorkflowForm({ workflow, signedIn, draft }: { workflow: Workflow
   const [serverIssue, setServerIssue] = useState<Message>();
   const [busy, setBusy] = useState(false);
   const [id] = useState(() => draft?.id ?? crypto.randomUUID());
-  const [language, setLanguage] = useState(draft?.content_language ?? locale);
+  const [language] = useState(draft?.content_language ?? locale);
   const [consent, setConsent] = useState(draft?.review_consent ?? false);
   const [saved, setSaved] = useState(false);
   const [remoteErrors, setRemoteErrors] = useState<Record<string, string>>({});
@@ -44,8 +41,6 @@ export function WorkflowForm({ workflow, signedIn, draft }: { workflow: Workflow
   useEffect(() => {
     if (!focus) return;
     const element = document.getElementById(focus.id);
-    const details = element?.closest('details');
-    if (details) details.open = true;
     element?.focus();
   }, [focus]);
 
@@ -162,9 +157,8 @@ export function WorkflowForm({ workflow, signedIn, draft }: { workflow: Workflow
 
   const current = steps[step];
   const fields = workflow.fields.filter(field => fieldStep(field.name) === step);
-  const optional = fields.filter(field => disclosed.has(field.name) && !fieldRequired(field, values));
   const sharing = fields.find(field => field.name === 'sharing_permission');
-  const main = fields.filter(field => field !== sharing && !optional.includes(field) &&
+  const main = fields.filter(field => field !== sharing &&
     (field.name !== 'resolution' || fieldRequired(field, values) || !!values.resolution || !!errors.resolution));
   const hasIssues = fields.some(field => errors[field.name]);
 
@@ -182,20 +176,7 @@ export function WorkflowForm({ workflow, signedIn, draft }: { workflow: Workflow
       {(hasIssues || Boolean(errors.form)) && <p className="error" role="alert">{errors.form ?? t('highlight')}</p>}
       <fieldset disabled={busy} className="workflow-fields">
         {main.map(renderField)}
-        {!!optional.length && <details key={step} className="repair-details full-field" open={optional.some(field => !!errors[field.name]) || undefined}>
-          <summary>{t('optionalDetails')}</summary>
-          <div className="stack">{optional.map(renderField)}</div>
-        </details>}
       </fieldset>
-      {step === 2 && <fieldset className="stack" disabled={busy}>
-        <label>{t('contentLanguage')}<select value={language} onChange={event => {
-          setLanguage(event.target.value);
-          setSaved(false);
-        }}>
-          {!Object.hasOwn(localeNames, language) && <option value={language}>{language}</option>}
-          {Object.entries(localeNames).map(([code, name]) => <option key={code} value={code} lang={code}>{name}</option>)}
-        </select></label>
-      </fieldset>}
       {step === 2 && <fieldset className="stack permission-panel" disabled={busy}>
         <legend>{t('permissions')}</legend>
         {signedIn && <label className="choice"><input id="review-consent" type="checkbox" checked={consent}

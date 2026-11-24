@@ -53,7 +53,6 @@ try {
   await next(author);
   assert.equal(await author.locator('#symptoms').inputValue(), 'عطل تجريبي E-42/A');
   await next(author);
-  await author.locator('.stack select').last().selectOption('ar');
   await author.locator('#review-consent').check();
   await author.getByRole('button', { name: 'إرسال للمراجعة' }).click();
   await author.waitForURL('**/cases/*');

@@ -18,7 +18,7 @@ const navigation = [
 ] as const;
 
 function App() {
-  const { t, l } = useLanguage();
+  const { t } = useLanguage();
   const path = window.location.pathname.replace(/\/$/, '') || '/';
   const [user, setUser] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -92,10 +92,6 @@ function App() {
         {!draftId || draft ? <WorkflowForm key={draft?.id ?? 'new-repair'}
           workflow={workflow} signedIn={Boolean(user)} draft={draft} />
           : <p role={draftError ? 'alert' : 'status'}>{t(draftError ?? 'loadingData')}</p>}
-        <details>
-          <summary>{t('questions')}</summary>
-          <ul>{workflow.review_questions.map((question, index) => <li key={index}>{l(question)}</li>)}</ul>
-        </details>
       </section>}
       {path === '/profile' && (loading ? <p role="status">{t('loading')}</p> : user ? <section className="panel">
         <h1>{t(onboarding ? 'setup' : 'profile')}</h1>

@@ -71,7 +71,6 @@ try {
         config.categories.find(category => category.value === 'hvac').label[locale]);
       await layout(page, locale + ' ' + width + ' equipment');
       if (capture) {
-        await page.locator('.repair-details summary').click();
         await page.locator('#fault_code').fill('E-42/A');
         assert.equal(await page.locator('#fault_code').getAttribute('dir'), 'ltr');
         await page.screenshot({ path: resolve(captures, `repair-${locale}-${width}.png`), fullPage: true });
