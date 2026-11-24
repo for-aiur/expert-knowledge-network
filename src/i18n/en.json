@@ -141,5 +141,7 @@
   "allReports": "All",
   "sharingPrivate": "Private",
   "sharingAllowed": "Sharing allowed after approval",
-  "sharingPublished": "Shared with community"
+  "sharingPublished": "Shared with community",
+  "diagnosisNotice": "Independent opinion on a proposed diagnosis. The diagnosis and repair have not been physically verified.",
+  "unsafeAssessment": "An unsafe next step cannot be marked valid. Choose another assessment and explain why."
 }

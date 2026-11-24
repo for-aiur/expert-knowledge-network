@@ -1,3 +1,4 @@
+import { taskRoute } from './tasks';
 import { repairRoute } from './repair';
 import { isLocale, type Locale, type Message } from '../i18n/messages';
 import { expertiseValues, isRecord, validateFields, workflowFor } from '../workflows';
@@ -18,7 +19,7 @@ function json(data: unknown, status = 200, headers: Record<string, string> = {})
 
 const error = (code: Message, status: number) => json({ code }, status);
 
-async function readJson(request: Request) {
+async function readJson(request: Request, maxBytes = 128_000) {
   const reader = request.body?.getReader();
   if (!reader) return null;
   const decoder = new TextDecoder();
@@ -29,7 +30,7 @@ async function readJson(request: Request) {
       const { value, done } = await reader.read();
       if (done) return JSON.parse(body + decoder.decode()) as unknown;
       length += value.byteLength;
-      if (length > 128_000) {
+      if (length > maxBytes) {
         await reader.cancel();
         return null;
       }
@@ -43,6 +44,10 @@ async function readJson(request: Request) {
 async function api(request: Request, env: Env, url: URL) {
   const { method } = request;
   const path = url.pathname;
+  if (path === '/api/v1/tasks' || path.startsWith('/api/v1/tasks/')) {
+    const result = await taskRoute(env.DB, request, path, readJson);
+    return json(result.data, result.status, result.headers);
+  }
   if (method === 'GET' && path === '/api/health') {
     await env.DB.prepare('SELECT id FROM users LIMIT 1').first();
     return json({ status: 'ok', database: 'ok' });

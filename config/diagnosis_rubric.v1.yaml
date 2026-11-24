@@ -1,0 +1,60 @@
+version: 1
+fields:
+  - name: technical_plausibility
+    label:
+      en: Is the reported diagnosis or root cause technically plausible?
+      de: Ist die angegebene Diagnose oder Grundursache fachlich plausibel?
+      tr: Bildirilen tanı veya kök neden teknik açıdan makul mü?
+      pl: Czy zgłoszona diagnoza lub przyczyna jest technicznie wiarygodna?
+      ru: Правдоподобны ли указанная диагностика или первопричина?
+      ar: هل التشخيص أو السبب الجذري المذكور معقول تقنيًا؟
+    options: [yes, no, unsure]
+  - name: next_step_safety
+    label:
+      en: Are the recommended next steps safe and appropriate?
+      de: Sind die empfohlenen nächsten Schritte sicher und angemessen?
+      tr: Önerilen sonraki adımlar güvenli ve uygun mu?
+      pl: Czy zalecane dalsze kroki są bezpieczne i odpowiednie?
+      ru: Безопасны и уместны ли рекомендуемые действия?
+      ar: هل الخطوات التالية الموصى بها آمنة ومناسبة؟
+    options: [safe, unsafe, uncertain, not_applicable]
+  - name: explanation_sufficient
+    label:
+      en: Is there enough detail to assess the report?
+      de: Reichen die Angaben aus, um den Bericht zu beurteilen?
+      tr: Raporu değerlendirmek için yeterli ayrıntı var mı?
+      pl: Czy opis zawiera dość szczegółów do oceny?
+      ru: Достаточно ли деталей для оценки отчёта?
+      ar: هل توجد تفاصيل كافية لتقييم التقرير؟
+    options: [yes, no]
+  - name: overall_assessment
+    label:
+      en: Overall assessment
+      de: Gesamturteil
+      tr: Genel değerlendirme
+      pl: Ocena ogólna
+      ru: Общая оценка
+      ar: التقييم العام
+    options: [valid, needs_improvement, invalid, cannot_assess]
+reasoning:
+  label:
+    en: Explain your assessment or ask a clarifying question
+    de: Begründen Sie Ihre Einschätzung oder stellen Sie eine Rückfrage
+    tr: Değerlendirmeni açıkla veya açıklayıcı bir soru sor
+    pl: Uzasadnij ocenę lub zadaj pytanie wyjaśniające
+    ru: Обоснуйте оценку или задайте уточняющий вопрос
+    ar: اشرح تقييمك أو اطرح سؤالًا للتوضيح
+  required_for: [needs_improvement, invalid, cannot_assess]
+  max_length: 4000
+options:
+  "yes": { en: "Yes", de: Ja, tr: Evet, pl: Tak, ru: Да, ar: نعم }
+  "no": { en: "No", de: Nein, tr: Hayır, pl: Nie, ru: Нет, ar: لا }
+  unsure: { en: Unsure, de: Unsicher, tr: Emin değilim, pl: Brak pewności, ru: Не уверен, ar: غير متأكد }
+  not_applicable: { en: Not applicable, de: Nicht zutreffend, tr: Uygulanamaz, pl: Nie dotyczy, ru: Неприменимо, ar: لا ينطبق }
+  valid: { en: Valid, de: Plausibel, tr: Geçerli, pl: Poprawny, ru: Обосновано, ar: مقبول }
+  needs_improvement: { en: Needs improvement, de: Verbesserungsbedarf, tr: İyileştirme gerekli, pl: Wymaga poprawy, ru: Требует доработки, ar: يحتاج إلى تحسين }
+  invalid: { en: Invalid, de: Nicht plausibel, tr: Geçersiz, pl: Niepoprawny, ru: Необосновано, ar: غير مقبول }
+  cannot_assess: { en: Cannot assess, de: Nicht beurteilbar, tr: Değerlendirilemiyor, pl: Nie można ocenić, ru: Невозможно оценить, ar: يتعذر التقييم }
+  safe: { en: Safe, de: Sicher, tr: Güvenli, pl: Bezpieczne, ru: Безопасно, ar: آمنة }
+  unsafe: { en: Unsafe, de: Unsicher, tr: Güvensiz, pl: Niebezpieczne, ru: Небезопасно, ar: غير آمنة }
+  uncertain: { en: Uncertain, de: Unklar, tr: Belirsiz, pl: Niepewne, ru: Неясно, ar: غير مؤكدة }

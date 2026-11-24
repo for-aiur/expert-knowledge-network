@@ -1,6 +1,6 @@
 import { Icon } from './Icon';
 import { useEffect, useState, type FormEvent } from 'react';
-import { rubricFor, rubricOptions, statuses, type Assignment, type FeedbackEntry, type Page, type Repair } from '../repair';
+import { rubricFor, rubricOptions, statuses, type Assignment, type FeedbackEntry, type Page, type Repair, type WorkflowType } from '../repair';
 import { localeNames, isLocale } from '../i18n/messages';
 import { workflowFor } from '../workflows';
 import type { Message } from '../i18n/messages';
@@ -34,11 +34,11 @@ function Paging({ offset, next, change }: { offset: number; next: number | null;
   </div>;
 }
 
-function CaseFacts({ repair }: { repair: CaseView }) {
+function CaseFacts({ repair, type = 'repair_case' }: { repair: CaseView; type?: WorkflowType }) {
   const { l, t } = useLanguage();
-  const workflow = workflowFor('repair_case', repair.schema_version);
+  const workflow = workflowFor(type, repair.schema_version);
   return <>
-    <p className="note">{t('reported')}</p>
+    <p className="note">{t(type === 'diagnosis_review' ? 'diagnosisNotice' : 'reported')}</p>
     <dl className="case-facts">
       {workflow?.fields.map(field => {
         const value = repair.values[field.name];
@@ -102,11 +102,11 @@ export function CaseList({ community }: { community: boolean }) {
   </section>;
 }
 
-function ReviewFeedback({ entry }: { entry: FeedbackEntry }) {
+function ReviewFeedback({ entry, type = 'repair_case' }: { entry: FeedbackEntry; type?: WorkflowType }) {
   const { t, l } = useLanguage();
-  const rubric = entry.rubric_version === null ? undefined : rubricFor(entry.rubric_version);
+  const rubric = entry.rubric_version === null ? undefined : rubricFor(entry.rubric_version, type);
   return <div className="review-card">
-    <strong>{l(rubricFor().options[entry.assessment])}</strong>
+    <strong>{l(rubricFor(undefined, type).options[entry.assessment])}</strong>
     {rubric && <dl className="case-facts">{rubric.fields.filter(field => field.name !== 'overall_assessment').map(field => {
       const label = rubric.options[entry.answers[field.name]];
       return <div key={field.name}><dt>{l(field.label)}</dt><dd>{label && l(label)}</dd></div>;
@@ -165,15 +165,21 @@ function ReviewForm({ assignment, onComplete }: { assignment: Assignment; onComp
   const [error, setError] = useState<Message>();
   const [busy, setBusy] = useState(false);
   const [assessment, setAssessment] = useState('');
-  const rubric = rubricFor(assignment.rubric_version);
+  const [safety, setSafety] = useState('');
+  const rubric = rubricFor(assignment.rubric_version, assignment.workflow_type);
+  const hasSteps = Boolean(assignment.repair.values.recommended_next_steps?.trim());
   if (!rubric) return <Feedback error="formMissing" />;
-  const required = rubric.reasoning.required_for.includes(assessment);
+  const required = rubric.reasoning.required_for.includes(assessment) || safety === 'unsafe';
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const fields = new FormData(event.currentTarget);
     const reasoning = String(fields.get('reasoning') ?? '');
     const answers = Object.fromEntries(rubric.fields.map(field => [field.name, fields.get(field.name)]));
+    if (safety === 'unsafe' && assessment === 'valid') {
+      setError('unsafeAssessment');
+      return;
+    }
     if ((required && !reasoning.trim()) || Object.values(answers).some(value => !value)) {
       setError('reviewInvalid');
       return;
@@ -196,9 +202,11 @@ function ReviewForm({ assignment, onComplete }: { assignment: Assignment; onComp
       {rubric.fields.map(field => <label key={field.name}>{l(field.label)}
         <select name={field.name} defaultValue="" required onChange={event => {
           if (field.name === 'overall_assessment') setAssessment(event.target.value);
+          if (field.name === 'next_step_safety') setSafety(event.target.value);
         }}>
           <option value="">{t('choose')}</option>
-          {rubricOptions(field, assignment.repair.values.outcome?.trim()).map(value =>
+          {rubricOptions(field, assignment.repair.values.outcome?.trim()).filter(value =>
+            field.name !== 'next_step_safety' || (hasSteps ? value !== 'not_applicable' : value === 'not_applicable')).map(value =>
             <option key={value} value={value}>{l(rubric.options[value])}</option>)}
         </select>
       </label>)}
@@ -249,14 +257,16 @@ export function ReviewQueue({ signedIn }: { signedIn: boolean }) {
       {!data?.items ? <Feedback error={error} /> : <>
         {!data.items.length && <p>{t('noReviews')}</p>}
         <ul className="record-list">{data.items.map(item => <li key={item.id} className="review-card">
+          <p className="status-chip"><Icon name={item.workflow_type === 'diagnosis_review' ? 'problem' : 'equipment'} />
+            {l(workflowFor(item.workflow_type, item.repair.schema_version).title)}</p>
           <button className="secondary" aria-expanded={active === item.id} onClick={() => setActive(active === item.id ? undefined : item.id)}>
             {t(item.completed ? 'completedReview' : 'openReview')}
           </button>
-          {item.feedback && <span className="status-chip">{l(rubricFor().options[item.feedback.assessment])}</span>}
+          {item.feedback && <span className="status-chip">{l(rubricFor(undefined, item.workflow_type).options[item.feedback.assessment])}</span>}
           {item.repair.values.symptoms && <p className="record-preview" dir="auto" lang={item.repair.content_language}>{item.repair.values.symptoms}</p>}
           {active === item.id && <>
-            <CaseFacts repair={item.repair} />
-            {item.feedback && <ReviewFeedback entry={item.feedback} />}
+            <CaseFacts repair={item.repair} type={item.workflow_type} />
+            {item.feedback && <ReviewFeedback entry={item.feedback} type={item.workflow_type} />}
             {!item.completed && <ReviewForm assignment={item} onComplete={() => {
               setActive(undefined);
               setNotice('reviewSaved');

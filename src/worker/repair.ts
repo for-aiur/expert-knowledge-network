@@ -1,3 +1,5 @@
+import { allocation } from './review-allocation';
+import type { WorkflowType } from '../repair';
 import { equipmentKey } from '../equipment';
 import { rubricFor, rubricOptions, statuses, type Assessment, type FeedbackEntry, type Repair } from '../repair';
 import { categories, isRecord, validateFields, workflowFor } from '../workflows';
@@ -21,9 +23,9 @@ const repairColumns = `s.id, s.schema_version, coalesce(s.assessment_override, s
 const draftColumns = `id, schema_version, 'draft' AS status, json_extract(payload, '$.source_type') AS source_type,
   json_extract(payload, '$.sharing_permission') AS sharing_permission, content_language, updated_at, payload, previous_revision_id, 0 AS dissent, review_consent`;
 
-function serialize(row: Row) {
+function serialize(row: Row, type: WorkflowType = 'repair_case') {
   const { payload, review_consent, dissent, ...data } = row;
-  const workflow = workflowFor('repair_case', row.schema_version);
+  const workflow = workflowFor(type, row.schema_version);
   const raw: unknown = JSON.parse(payload);
   const values = Object.fromEntries((workflow?.fields ?? []).flatMap(field =>
     isRecord(raw) && typeof raw[field.name] === 'string' ? [[field.name, raw[field.name]]] : []));
@@ -52,39 +54,6 @@ async function own(db: Database, user: string, id: string) {
     .bind(id, user).first<Row>() ??
     await db.prepare(`SELECT ${repairColumns} FROM workflow_submissions s
       WHERE s.id = ? AND s.user_id = ? AND s.workflow_type = 'repair_case'`).bind(id, user).first<Row>();
-}
-
-// A single INSERT selects the full initial pair or no one. The transaction's next
-// statement sees exactly those assignments, including when another request won the race.
-function allocation(db: Database, id: string) {
-  return [
-    db.prepare(`
-      WITH target AS (
-        SELECT s.id, s.user_id, s.equipment_category,
-          CASE WHEN t.assigned IS NULL THEN 2 ELSE 1 END AS needed,
-          CASE WHEN t.assigned IS NULL THEN 'initial'
-            WHEN t.valid_votes = 1 AND t.invalid_votes = 1 THEN 'tie_break' ELSE 'replacement' END AS purpose
-        FROM workflow_submissions s LEFT JOIN repair_review_tally t ON t.submission_id = s.id
-        WHERE s.id = ? AND s.workflow_type = 'repair_case' AND s.review_consented_at IS NOT NULL
-          AND s.assessment_override IS NULL AND s.review_status IN ('pending', 'in_review', 'disputed')
-          AND (t.assigned IS NULL OR (t.assigned = t.completed AND t.assigned >= 2 AND t.tie_breaks = 0
-            AND t.valid_votes < 2 AND t.invalid_votes < 2 AND t.clarification_votes = 0))
-      ), candidates AS MATERIALIZED (
-        SELECT e.user_id, t.id, t.needed, t.purpose
-        FROM target t JOIN user_expertise e ON e.category_id = t.equipment_category
-        WHERE e.user_id <> t.user_id AND NOT EXISTS (
-          SELECT 1 FROM review_assignments a WHERE a.submission_id = t.id AND a.reviewer_id = e.user_id)
-        ORDER BY random() LIMIT 2
-      )
-      INSERT INTO review_assignments (id, submission_id, reviewer_id, purpose, rubric_version)
-      SELECT lower(hex(randomblob(16))), id, user_id, purpose, ? FROM candidates
-      WHERE (SELECT count(*) FROM candidates) >= needed
-      LIMIT coalesce((SELECT needed FROM target), 0)
-    `).bind(id, rubricFor().version),
-    db.prepare(`UPDATE workflow_submissions SET review_status = 'in_review', updated_at = unixepoch()
-      WHERE id = ? AND review_status = 'pending'
-        AND (SELECT count(*) FROM review_assignments WHERE submission_id = ?) = 2`).bind(id, id),
-  ];
 }
 
 async function repairLists(db: Database, url: URL, user: string | null): Promise<Result> {
@@ -214,20 +183,20 @@ async function assignments(db: Database, user: string, url: URL): Promise<Result
   const paging = page(url);
   if (!paging) return fail('formatError', 400);
   const { results } = await db.prepare(`SELECT ${repairColumns}, a.id AS assignment_id,
-      a.status AS assignment_status, a.rubric_version AS assignment_rubric, r.rubric_version, r.overall_assessment, r.answers
+      s.workflow_type, a.status AS assignment_status, a.rubric_version AS assignment_rubric, r.rubric_version, r.overall_assessment, r.answers
     FROM review_assignments a JOIN workflow_submissions s ON s.id = a.submission_id
     LEFT JOIN reviews r ON r.assignment_id = a.id
-    WHERE a.reviewer_id = ? AND a.status <> 'cancelled' AND s.workflow_type = 'repair_case'
+    WHERE a.reviewer_id = ? AND a.status <> 'cancelled'
     ORDER BY a.status = 'assigned' DESC, a.created_at DESC, a.id LIMIT ? OFFSET ?`)
     .bind(user, paging.limit + 1, paging.offset).all<Row & {
-      assignment_id: string; assignment_status: string; assignment_rubric: number; rubric_version: number | null;
+      workflow_type: WorkflowType; assignment_id: string; assignment_status: string; assignment_rubric: number; rubric_version: number | null;
       overall_assessment: Assessment | null; answers: string | null;
     }>();
   return { data: paginated(results.map(row => {
-    const repair = serialize(row);
+    const repair = serialize(row, row.workflow_type);
     delete repair.values.sharing_permission;
     return {
-      id: row.assignment_id, completed: row.assignment_status === 'completed', rubric_version: row.assignment_rubric,
+      id: row.assignment_id, workflow_type: row.workflow_type, completed: row.assignment_status === 'completed', rubric_version: row.assignment_rubric,
       feedback: row.overall_assessment && row.answers ? feedbackEntry({
         overall_assessment: row.overall_assessment, rubric_version: row.rubric_version, answers: row.answers,
       }) : null,
@@ -237,27 +206,35 @@ async function assignments(db: Database, user: string, url: URL): Promise<Result
 }
 
 async function review(db: Database, user: string, id: string, input: Record<string, unknown>): Promise<Result> {
-  const row = await db.prepare(`SELECT a.submission_id, a.status, s.schema_version, a.rubric_version,
-      json_extract(s.payload, '$.outcome') AS outcome
+  const row = await db.prepare(`SELECT a.submission_id, a.status, s.schema_version, s.workflow_type, a.rubric_version,
+      json_extract(s.payload, '$.outcome') AS outcome,
+      json_extract(s.payload, '$.recommended_next_steps') AS next_steps
     FROM review_assignments a JOIN workflow_submissions s ON s.id = a.submission_id
-    WHERE a.id = ? AND a.reviewer_id = ? AND s.workflow_type = 'repair_case' AND a.status <> 'cancelled'`)
+    WHERE a.id = ? AND a.reviewer_id = ? AND a.status <> 'cancelled'`)
     .bind(id, user).first<{
-      submission_id: string; status: string; schema_version: number; rubric_version: number; outcome: string;
+      submission_id: string; status: string; schema_version: number; rubric_version: number; workflow_type: WorkflowType; outcome: string | null; next_steps: string | null;
     }>();
   if (!row) return fail('notFound', 404);
   if (row.status === 'completed') return { data: { completed: true } };
-  const rubric = rubricFor(row.rubric_version);
+  const rubric = rubricFor(row.rubric_version, row.workflow_type);
   if (!rubric) return fail('formMissing', 404);
   const { answers, reasoning } = input;
   if (!isRecord(answers) || Object.keys(answers).length !== rubric.fields.length ||
-      !rubric.fields.every(field => rubricOptions(field, row.outcome.trim()).some(value => value === answers[field.name])) ||
+      !rubric.fields.every(field => rubricOptions(field, row.outcome?.trim() ?? '').some(value => value === answers[field.name])) ||
       typeof reasoning !== 'string' || reasoning.length > rubric.reasoning.max_length ||
       (rubric.reasoning.required_for.some(value => value === answers.overall_assessment) && !reasoning.trim())) {
     return fail('reviewInvalid', 422);
   }
   const assessment = answers.overall_assessment as Assessment;
+  if (row.workflow_type === 'diagnosis_review') {
+    const hasSteps = Boolean(row.next_steps?.trim());
+    if ((answers.next_step_safety === 'not_applicable') === hasSteps) return fail('reviewInvalid', 422);
+    if (answers.next_step_safety === 'unsafe' && (assessment === 'valid' || !reasoning.trim())) {
+      return fail('unsafeAssessment', 422);
+    }
+  }
   const legacyDecision = assessment === 'valid' ? 'approve' : assessment === 'invalid' ? 'reject' : 'uncertain';
-  const points = qualifiedReviewPoints(row.schema_version, reasoning);
+  const points = qualifiedReviewPoints(row.workflow_type, row.schema_version, reasoning);
   const submission = row.submission_id;
   await db.batch([
     db.prepare(`INSERT OR IGNORE INTO reviews (id, assignment_id, decision, answers, overall_assessment, rubric_version)
@@ -271,21 +248,30 @@ async function review(db: Database, user: string, id: string, input: Record<stri
         AND length(trim(json_extract(r.answers, '$.reasoning'))) >= 30`).bind(crypto.randomUUID(), points, id, user, points),
     db.prepare(`
       UPDATE workflow_submissions AS s
-      SET review_status = CASE WHEN t.clarification_votes > 0 THEN 'disputed'
-        WHEN t.valid_votes >= 2 THEN 'approved' WHEN t.invalid_votes >= 2 THEN 'rejected' ELSE 'disputed' END,
-        assessment_override = CASE WHEN t.clarification_votes > 0 THEN 'needs_clarification' ELSE NULL END,
+      SET review_status = CASE
+        WHEN t.unsafe = 1 THEN 'rejected'
+        WHEN t.clarification_votes > 0 THEN 'disputed'
+        WHEN t.workflow_type = 'repair_case' AND t.valid_votes >= 2 THEN 'approved'
+        WHEN t.workflow_type = 'repair_case' AND t.invalid_votes >= 2 THEN 'rejected'
+        WHEN t.workflow_type = 'diagnosis_review' AND t.valid_votes + t.invalid_votes >= t.required_reviews
+          AND (t.invalid_votes = 0 OR (t.decisive_tie_break = 1 AND t.valid_votes > t.invalid_votes)) THEN 'approved'
+        WHEN t.workflow_type = 'diagnosis_review' AND t.valid_votes + t.invalid_votes >= t.required_reviews
+          AND (t.valid_votes = 0 OR (t.decisive_tie_break = 1 AND t.invalid_votes > t.valid_votes)) THEN 'rejected'
+        ELSE 'disputed' END,
+        assessment_override = CASE WHEN t.clarification_votes > 0 AND t.unsafe = 0 THEN 'needs_clarification' ELSE NULL END,
         updated_at = unixepoch()
-      FROM repair_review_tally t
-      WHERE s.id = ? AND t.submission_id = s.id AND s.assessment_override IS NULL
-        AND s.review_status IN ('in_review', 'disputed') AND t.assigned = t.completed AND t.completed >= 2
+      FROM workflow_review_round t
+      WHERE s.id = ? AND t.id = s.id AND s.assessment_override IS NULL
+        AND s.review_status IN ('in_review', 'disputed') AND t.assigned = t.completed
+        AND t.completed >= t.required_reviews
     `).bind(submission),
     ...allocation(db, submission),
   ]);
   return { data: { completed: true } };
 }
 
-function qualifiedReviewPoints(version: number, reasoning: string) {
-  return reasoning.trim().length >= 30 ? workflowFor('repair_case', version)?.points.review ?? 0 : 0;
+function qualifiedReviewPoints(type: WorkflowType, version: number, reasoning: string) {
+  return reasoning.trim().length >= 30 ? workflowFor(type, version)?.points.review ?? 0 : 0;
 }
 
 async function activity(db: Database, user: string): Promise<Result> {
@@ -365,19 +351,15 @@ export async function repairRoute(db: Database, url: URL, method: string, user: 
   if (method === 'GET' && path === '/api/v1/me/activity') return activity(db, user);
   if (method === 'GET' && path === '/api/v1/me/reviews') return assignments(db, user, url);
   if (method === 'POST' && path === '/api/v1/me/reviews/refresh') {
-    const { results } = await db.prepare(`SELECT s.id FROM workflow_submissions s
-      JOIN user_expertise e ON e.category_id = s.equipment_category AND e.user_id = ?
-      LEFT JOIN repair_review_tally t ON t.submission_id = s.id
-      WHERE s.workflow_type = 'repair_case' AND s.user_id <> e.user_id AND s.assessment_override IS NULL
-       AND s.review_status IN ('pending', 'in_review', 'disputed')
-       AND NOT EXISTS (SELECT 1 FROM review_assignments a WHERE a.submission_id = s.id AND a.reviewer_id = e.user_id)
-       AND (t.assigned IS NULL OR (t.assigned = t.completed AND t.assigned >= 2 AND t.tie_breaks = 0
-            AND t.valid_votes < 2 AND t.invalid_votes < 2 AND t.clarification_votes = 0))
-       AND (SELECT count(*) FROM user_expertise eligible WHERE eligible.category_id = s.equipment_category
-         AND eligible.user_id <> s.user_id AND NOT EXISTS (
-           SELECT 1 FROM review_assignments prior WHERE prior.submission_id = s.id AND prior.reviewer_id = eligible.user_id
-         )) >= CASE WHEN t.assigned IS NULL THEN 2 ELSE 1 END
-      ORDER BY s.created_at, s.id LIMIT 20`).bind(user).all<{ id: string }>();
+    const { results } = await db.prepare(`SELECT t.id FROM workflow_review_plan t
+      JOIN user_expertise e ON e.category_id = t.equipment_category AND e.user_id = ?
+      WHERE t.user_id IS NOT e.user_id
+       AND NOT EXISTS (SELECT 1 FROM review_assignments a WHERE a.submission_id = t.id AND a.reviewer_id = e.user_id)
+       AND (SELECT count(*) FROM user_expertise eligible WHERE eligible.category_id = t.equipment_category
+         AND eligible.user_id IS NOT t.user_id AND NOT EXISTS (
+           SELECT 1 FROM review_assignments prior WHERE prior.submission_id = t.id AND prior.reviewer_id = eligible.user_id
+         )) >= t.needed
+      ORDER BY t.id LIMIT 20`).bind(user).all<{ id: string }>();
     if (results.length) await db.batch(results.flatMap(row => allocation(db, row.id)));
     return { data: { refreshed: true } };
   }

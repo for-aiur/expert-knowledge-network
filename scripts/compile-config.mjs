@@ -62,12 +62,13 @@ check(['repair_case', 'diagnosis_review'].every(type => workflows.some(workflow 
   'Both workflow types must be configured');
 const rubrics = [];
 for (const file of (await readdir(directory)).sort()) {
-  const match = /^repair_review\.v([1-9]\d*)\.yaml$/.exec(file);
+  const match = /^(repair_review|diagnosis_rubric)\.v([1-9]\d*)\.yaml$/.exec(file);
   if (!match) continue;
   const rubric = await read(file);
-  check(rubric.version === Number(match[1]), `Invalid rubric version in ${file}`);
+  check(rubric.version === Number(match[2]), `Invalid rubric version in ${file}`);
+  rubric.workflow_type = match[1] === 'repair_review' ? 'repair_case' : 'diagnosis_review';
   const names = rubric.fields.map(field => field.name);
-  check(names.length === 4 && ['technical_plausibility', 'resolution_consistency', 'explanation_sufficient',
+  check(names.length === 4 && ['technical_plausibility', rubric.workflow_type === 'repair_case' ? 'resolution_consistency' : 'next_step_safety', 'explanation_sufficient',
     'overall_assessment'].every(name => names.includes(name)), `Invalid rubric fields in ${file}`);
   for (const [key, label] of Object.entries(rubric.options)) checkText(label, key);
   for (const field of rubric.fields) {
@@ -84,7 +85,8 @@ for (const file of (await readdir(directory)).sort()) {
     Number.isInteger(rubric.reasoning.max_length) && rubric.reasoning.max_length > 0, `Invalid reasoning rule in ${file}`);
   rubrics.push(rubric);
 }
-check(rubrics.length > 0, 'Configure at least one repair review rubric');
+check(['repair_case', 'diagnosis_review'].every(type => rubrics.some(rubric => rubric.workflow_type === type)),
+  'Configure both review rubrics');
 const output = new URL('../src/generated/', import.meta.url);
 await mkdir(output, { recursive: true });
 await writeFile(new URL('workflows.json', output), JSON.stringify({ categories, workflows, validation, rubrics }, null, 2) + '\n');

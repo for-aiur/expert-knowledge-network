@@ -48,6 +48,15 @@ fields:
       ru: Подтверждающие данные
       ar: الأدلة المؤيدة
     type: textarea
+  - name: recommended_next_steps
+    label:
+      en: Recommended next steps
+      de: Empfohlene nächste Schritte
+      tr: Önerilen sonraki adımlar
+      pl: Zalecane dalsze kroki
+      ru: Рекомендуемые дальнейшие действия
+      ar: الخطوات التالية الموصى بها
+    type: textarea
 review_questions:
   - en: Does the evidence support the proposed diagnosis?
     de: Stützen die Befunde die vorgeschlagene Diagnose?

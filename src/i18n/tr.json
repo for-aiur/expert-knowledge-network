@@ -141,5 +141,7 @@
   "allReports": "Tümü",
   "sharingPrivate": "Özel",
   "sharingAllowed": "Onaydan sonra paylaşılabilir",
-  "sharingPublished": "Toplulukla paylaşıldı"
+  "sharingPublished": "Toplulukla paylaşıldı",
+  "diagnosisNotice": "Önerilen tanı hakkında bağımsız görüş. Tanı ve onarım fiziksel olarak doğrulanmadı.",
+  "unsafeAssessment": "Güvensiz bir adım geçerli olarak işaretlenemez. Başka bir değerlendirme seçip nedenini açıkla."
 }

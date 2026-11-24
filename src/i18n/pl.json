@@ -141,5 +141,7 @@
   "allReports": "Wszystkie",
   "sharingPrivate": "Prywatny",
   "sharingAllowed": "Udostępnienie po zatwierdzeniu",
-  "sharingPublished": "Udostępniony społeczności"
+  "sharingPublished": "Udostępniony społeczności",
+  "diagnosisNotice": "Niezależna opinia o proponowanej diagnozie. Diagnoza i naprawa nie zostały sprawdzone fizycznie.",
+  "unsafeAssessment": "Niebezpiecznego kroku nie można uznać za poprawny. Wybierz inną ocenę i ją uzasadnij."
 }

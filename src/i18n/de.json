@@ -141,5 +141,7 @@
   "allReports": "Alle",
   "sharingPrivate": "Privat",
   "sharingAllowed": "Teilen nach Freigabe erlaubt",
-  "sharingPublished": "Mit der Community geteilt"
+  "sharingPublished": "Mit der Community geteilt",
+  "diagnosisNotice": "Unabhängige Einschätzung einer vorgeschlagenen Diagnose. Diagnose und Reparatur wurden nicht vor Ort überprüft.",
+  "unsafeAssessment": "Ein unsicherer nächster Schritt kann nicht als plausibel bewertet werden. Wählen und begründen Sie eine andere Einschätzung."
 }

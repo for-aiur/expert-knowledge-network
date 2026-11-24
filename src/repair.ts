@@ -11,20 +11,24 @@ type RubricField = {
   options: string[];
   extra_option?: { value: string; when_outcome: string };
 };
+export type WorkflowType = 'repair_case' | 'diagnosis_review';
+
 type Rubric = {
+  workflow_type: string;
   version: number;
   fields: RubricField[];
   options: Record<string, Localized>;
   reasoning: { label: Localized; required_for: string[]; max_length: number };
 };
-const rubrics: Rubric[] = config.rubrics;
-export function rubricFor(version?: number) {
-  return rubrics.filter(rubric => version === undefined || rubric.version === version)
+const rubrics = config.rubrics as Rubric[];
+export function rubricFor(version?: number, workflow: WorkflowType = 'repair_case') {
+  return rubrics.filter(rubric => rubric.workflow_type === workflow && (version === undefined || rubric.version === version))
     .sort((a, b) => b.version - a.version)[0];
 }
 
-export function rubricOptions(field: RubricField, outcome: string) {
-  return field.extra_option?.when_outcome === outcome ? [...field.options, field.extra_option.value] : field.options;
+export function rubricOptions(field: RubricField, outcome?: string) {
+  const extra = field.extra_option;
+  return extra && extra.when_outcome === outcome ? [...field.options, extra.value] : field.options;
 }
 
 export type FeedbackEntry = {
@@ -52,6 +56,7 @@ export type Repair = {
 export type Page<T> = { items: T[]; next_offset: number | null };
 export type Assignment = {
   id: string;
+  workflow_type: WorkflowType;
   completed: boolean;
   rubric_version: number;
   feedback: FeedbackEntry | null;

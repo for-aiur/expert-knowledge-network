@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
@@ -55,8 +56,8 @@ after(async () => {
   if (directory) await rm(directory, { recursive: true, force: true });
 });
 
-async function call(path, { body, method = body ? 'POST' : 'GET', cookie, origin = base, locale } = {}) {
-  const headers = { Origin: origin };
+async function call(path, { body, method = body ? 'POST' : 'GET', cookie, origin = base, locale, headers: extra = {} } = {}) {
+  const headers = { Origin: origin, ...extra };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (cookie) headers.Cookie = cookie;
   if (locale) headers['X-EKN-Language'] = locale;
@@ -413,4 +414,166 @@ test('repair drafts, blind randomized review, concurrent retries, privacy and po
   assert.equal(retained.next_revision_id, revision.data.id);
   assert.equal((await assignedTo(revision.data.id)).filter(([, item]) => item.feedback === null).length, 2);
 
+});
+
+test('private client diagnosis creation, shared blind review, safety and structured results', async () => {
+  const keys = Array.from({ length: 3 }, () => 'ekn_' + randomBytes(32).toString('hex'));
+  const values = keys.map((key, index) =>
+    `('test-client-${index}', 'Private client ${index}', '${createHash('sha256').update(key).digest('hex')}', ${index === 2 ? 1 : 'NULL'})`);
+  const seeded = wrangler(['d1', 'execute', 'DB', '--local', '--persist-to', directory, '--command',
+    'INSERT INTO external_api_clients (id, label, api_key_hash, revoked_at) VALUES ' + values.join(',')]);
+  let output = '';
+  for (const stream of [seeded.stdout, seeded.stderr]) stream.on('data', data => { output += data; });
+  assert.equal(await new Promise(resolve => seeded.on('close', resolve)), 0, output);
+  const context = {
+    schema_version: 1, content_language: 'ar', equipment_category: 'electrical_controls',
+    symptoms: 'إشارة الاختبار D-17 لا تظهر.',
+    proposed_diagnosis: 'Synthetic control simulator may have an unrecognized input.',
+    recommended_next_steps: 'Review the synthetic event log.',
+  };
+  const create = (reference, body = context, key = keys[0]) => call('/v1/tasks', {
+    body, headers: { Authorization: 'Bearer ' + key, ...(reference ? { 'Idempotency-Key': reference } : {}) },
+  });
+  const get = (id, key = keys[0]) => call('/v1/tasks/' + id, { headers: { Authorization: 'Bearer ' + key } });
+  const check = (response, status) => assert.equal(response.status, status, JSON.stringify(response.data));
+  const assertState = async (id, state) => {
+    const response = await get(id);
+    check(response, 200);
+    assert.equal(response.data.status, state, JSON.stringify(response.data));
+    return response.data;
+  };
+  check(await call('/v1/tasks', { body: context }), 401);
+  check(await create('bad', context, 'bad-key'), 401);
+  check(await create('revoked', context, keys[2]), 401);
+  check(await create(null), 400);
+  check(await create('oversized', { ...context, symptoms: 'x'.repeat(81_000) }), 400);
+  check(await create('unknown', { ...context, media: 'example' }), 422);
+  check(await create('bad-language', { ...context, content_language: 'not_a_language' }), 422);
+  check(await create('private-contact', { ...context, symptoms: 'Synthetic owner buyer@example.invalid' }), 422);
+
+  const initial = await Promise.all(Array.from({ length: 4 }, () => create('stable')));
+  assert.equal(initial.filter(response => response.status === 201).length, 1);
+  assert.ok(initial.every(response => [200, 201].includes(response.status)));
+  const id = initial[0].data.id;
+  assert.ok(initial.every(response => response.data.id === id && response.data.status === 'pending'));
+  check(await create('stable', { ...context, symptoms: 'Changed' }), 409);
+  const other = await create('stable', { ...context, equipment_category: 'heating_boilers' }, keys[1]);
+  check(other, 201);
+  assert.notEqual(other.data.id, id);
+  check(await get(id, keys[1]), 404);
+  assert.deepEqual((await get(crypto.randomUUID(), keys[1])).data, (await get(id, keys[1])).data);
+  assert.equal((await assertState(id, 'pending')).review_counts.assigned, 0);
+
+  const reviewers = [];
+  async function expertise(cookie, categories) {
+    check(await call('/profile/expertise', { cookie, method: 'PUT', body: { expertise: categories } }), 200);
+  }
+  for (let index = 0; index < 3; index++) {
+    const result = await call('/register', { body: {
+      email: 'diagnosis-reviewer-' + index + '@example.invalid',
+      password: 'synthetic-diagnosis-password',
+      nickname: 'Diagnosis reviewer ' + index,
+    } });
+    check(result, 201);
+    reviewers.push(token(result));
+    if (index < 2) await expertise(reviewers[index], ['electrical_controls']);
+  }
+  const queue = async cookie => (await call('/v1/me/reviews', { cookie })).data.items;
+  const refresh = cookie => call('/v1/me/reviews/refresh', { cookie, body: {} });
+  async function assignments(task) {
+    const entries = await Promise.all(reviewers.map(async cookie => [cookie,
+      (await queue(cookie)).find(item => item.repair.id === task)]));
+    return entries.filter(([, item]) => item);
+  }
+  const submit = (entry, assessment, safety = 'safe',
+    reasoning = 'The simulator event log supports this independent assessment.') => call('/v1/me/reviews/' + entry[1].id, {
+    cookie: entry[0], body: {
+      answers: { technical_plausibility: 'yes', next_step_safety: safety, explanation_sufficient: 'yes', overall_assessment: assessment },
+      reasoning,
+    },
+  });
+  const newTask = async (reference, body = context) => {
+    const response = await create(reference, body);
+    check(response, 201);
+    return response.data.id;
+  };
+
+  await Promise.all([refresh(reviewers[0]), refresh(reviewers[1]), refresh(reviewers[0])]);
+  assert.equal((await assertState(id, 'in_review')).review_counts.assigned, 2);
+  const pair = await assignments(id);
+  assert.equal(pair.length, 2);
+  assert.equal(pair[0][1].workflow_type, 'diagnosis_review');
+  assert.equal(pair[0][1].repair.values.symptoms, context.symptoms);
+  assert.equal(pair[0][1].feedback, null);
+  assert.ok(!JSON.stringify(pair).includes('Private client'));
+  check(await submit([reviewers[2], pair[0][1]], 'valid'), 404);
+  const original = 'Diagnosis reviewer ' + reviewers.indexOf(pair[0][0]) +
+    ' observed an event log warning. Contact reviewer@example.invalid.';
+  await Promise.all([submit(pair[0], 'valid', 'safe', original), submit(pair[0], 'valid', 'safe', original)])
+    .then(results => results.forEach(result => check(result, 200)));
+  const waiting = (await assignments(id)).find(([cookie]) => cookie === pair[1][0]);
+  assert.equal(waiting[1].feedback, null);
+  check(await submit(pair[1], 'valid'), 200);
+  const approved = await assertState(id, 'peer_reviewed');
+  assert.deepEqual(approved.review_counts, { required: 2, assigned: 2, completed: 2 });
+  assert.equal(approved.aggregate.assessment, 'valid');
+  assert.equal(approved.reviews.length, 2);
+  assert.ok(approved.reviews.some(item => item.reasoning.includes('[redacted] observed')));
+  assert.ok(!JSON.stringify(approved).includes('reviewer@example.invalid'));
+  assert.ok(!JSON.stringify(approved).includes('Diagnosis reviewer'));
+  assert.ok((await queue(pair[0][0])).find(item => item.repair.id === id).feedback.answers.reasoning === original);
+  assert.equal((await call('/v1/me/activity', { cookie: pair[0][0] })).data.points, 1);
+  assert.equal((await call('/v1/me/activity', { cookie: pair[1][0] })).data.points, 1);
+  check(await call('/v1/repairs/' + id), 404);
+  check(await call('/v1/me/submissions/' + id, { cookie: reviewers[0] }), 404);
+  assert.ok(!(await call('/v1/repairs', {})).data.items.some(item => item.id === id));
+
+  const conflict = await newTask('conflict');
+  const split = await assignments(conflict);
+  await Promise.all([submit(split[0], 'valid'), submit(split[1], 'invalid')]);
+  const missing = await assertState(conflict, 'inconclusive');
+  assert.equal(missing.aggregate.disagreement, true);
+  await expertise(reviewers[2], ['electrical_controls']);
+  await refresh(reviewers[2]);
+  await assertState(conflict, 'disputed');
+  const tie = (await assignments(conflict)).find(([, item]) => !item.completed);
+  check(await submit(tie, 'valid'), 200);
+  assert.equal((await assertState(conflict, 'peer_reviewed')).reviews.length, 3);
+
+  const unsafe = await newTask('unsafe');
+  const safetyPair = await assignments(unsafe);
+  const contradictory = await submit(safetyPair[0], 'valid', 'unsafe');
+  check(contradictory, 422);
+  assert.equal(contradictory.data.code, 'unsafeAssessment');
+  check(await submit(safetyPair[0], 'cannot_assess', 'unsafe'), 200);
+  check(await submit(safetyPair[1], 'valid'), 200);
+  const rejected = await assertState(unsafe, 'rejected');
+  assert.equal(rejected.aggregate.unsafe_next_step, true);
+
+  const clarification = await newTask('clarify', { ...context, required_reviews: 3, recommended_next_steps: '' });
+  const three = await assignments(clarification);
+  assert.equal(three.length, 3);
+  check(await submit(three[0], 'needs_improvement', 'not_applicable', ' '), 422);
+  check(await submit(three[0], 'needs_improvement', 'not_applicable'), 200);
+  check(await submit(three[1], 'valid', 'not_applicable'), 200);
+  await assertState(clarification, 'in_review');
+  check(await submit(three[2], 'valid', 'not_applicable'), 200);
+  assert.equal((await assertState(clarification, 'needs_clarification')).aggregate.clarification_requested, true);
+
+  const abstention = await newTask('abstention');
+  const abstaining = await assignments(abstention);
+  await Promise.all([submit(abstaining[0], 'valid'), submit(abstaining[1], 'cannot_assess')]);
+  const replacement = (await assignments(abstention)).find(([, item]) => !item.completed);
+  check(await submit(replacement, 'cannot_assess'), 200);
+  assert.equal((await assertState(abstention, 'inconclusive')).review_counts.completed, 3);
+
+  for (let attempt = 0; attempt < 125; attempt++) {
+    const response = await get(id);
+    if (response.status === 429) {
+      check(await get(other.data.id, keys[1]), 200);
+      return;
+    }
+    check(response, 200);
+  }
+  assert.fail('Client rate limit was not reached');
 });

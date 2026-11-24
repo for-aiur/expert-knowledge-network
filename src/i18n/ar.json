@@ -141,5 +141,7 @@
   "allReports": "الكل",
   "sharingPrivate": "خاص",
   "sharingAllowed": "المشاركة مسموحة بعد الموافقة",
-  "sharingPublished": "منشور في المجتمع"
+  "sharingPublished": "منشور في المجتمع",
+  "diagnosisNotice": "رأي مستقل بشأن تشخيص مقترح. لم يُتحقّق من التشخيص والإصلاح عمليًا.",
+  "unsafeAssessment": "لا يمكن قبول خطوة غير آمنة. اختر تقييمًا آخر واشرح السبب."
 }
