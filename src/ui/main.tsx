@@ -5,11 +5,12 @@ import { createRoot } from 'react-dom/client';
 import { workflowFor } from '../workflows';
 import type { Profile } from '../worker/db';
 import type { Message } from '../i18n/messages';
-import { Credentials, Expertise } from './Account';
+import { Credentials, DeleteAccount, Expertise } from './Account';
 import { message, request, type Session } from './api';
 import { WorkflowForm } from './WorkflowForm';
 import { Icon } from './Icon';
 import { LanguagePicker, LanguageProvider, useLanguage } from './Language';
+import { AdminExplorer } from './AdminExplorer';
 import './styles.css';
 
 const navigation = [
@@ -65,7 +66,10 @@ function App() {
           <bdi>Expert Knowledge Network</bdi></a>
         <nav aria-label={t('navigation')}>{navigation.map(([href, name]) =>
           <a href={href} key={href} aria-current={path === href ? 'page' : undefined}>
-            <Icon name={name} /><span>{t(name === 'leaderboard' ? 'rankingNav' : name)}</span></a>)}</nav>
+            <Icon name={name} /><span>{t(name === 'leaderboard' ? 'rankingNav' : name)}</span></a>)}
+          {user?.is_admin && <a className="admin-link" href="/admin" aria-current={path === '/admin' ? 'page' : undefined}>
+            <Icon name="profile" /><span>{t('adminNav')}</span></a>}
+        </nav>
         <LanguagePicker />
       </div>
     </header>
@@ -106,16 +110,19 @@ function App() {
           <button className="secondary" disabled={signingOut} onClick={signOut}>{t(signingOut ? 'signingOut' : 'signOut')}</button>
         </div>}
         {!onboarding && <Activity />}
+        {!onboarding && <DeleteAccount />}
       </section> : <Credentials onAccount={(account, firstVisit) => {
         setUser(account);
         setOnboarding(firstVisit);
       }} />)}
       {path === '/reviews' && <ReviewQueue signedIn={Boolean(user)} />}
       {path === '/leaderboard' && <Leaderboard />}
+      {path === '/admin' && (loading ? <p role="status">{t('loading')}</p> : user?.is_admin ? <AdminExplorer /> : <section className="panel"><h1>{t('adminForbidden')}</h1></section>)}
+      {path === '/privacy' && <section className="panel"><h1>{t('privacyTitle')}</h1><p>{t('privacyText')}</p></section>}
       {path === '/cases' && <CaseList community={false} />}
       {path === '/community' && <CaseList community />}
       {caseRoute && <CaseDetail id={caseRoute[2]} community={caseRoute[1] === 'community'} />}
-      {!caseRoute && !['/cases', '/community'].includes(path) && !navigation.some(([href]) => href === path) &&
+      {!caseRoute && !['/cases', '/community', '/admin', '/privacy'].includes(path) && !navigation.some(([href]) => href === path) &&
         <section className="panel"><h1>{t('notFound')}</h1><a href="/">{t('goHome')}</a></section>}
     </main>
   </>;

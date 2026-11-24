@@ -3,4 +3,5 @@ dist/
 .wrangler/
 src/generated/
 .dev.vars*
+!.dev.vars.example
 .env*

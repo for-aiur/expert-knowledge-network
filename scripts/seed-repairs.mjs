@@ -5,6 +5,8 @@ if (!['localhost', '127.0.0.1', '[::1]'].includes(base.hostname)) {
   throw new Error('The synthetic seed only supports localhost.');
 }
 const password = 'synthetic-repair-demo';
+const inviteCode = process.env.EKN_BETA_INVITE_CODE;
+if (!inviteCode) throw new Error('Set EKN_BETA_INVITE_CODE to the local closed-beta invite value before seeding.');
 const accounts = [
   ['author', 'Bench Author'],
   ['reviewer-a', 'Bench Reviewer A'],
@@ -23,7 +25,7 @@ async function api(path, method, body, cookie) {
 let authorCookie;
 for (const [name, nickname] of accounts) {
   const email = name + '@repair.example.invalid';
-  let result = await api('/register', 'POST', { email, password, nickname });
+  let result = await api('/register', 'POST', { email, password, nickname, invite_code: inviteCode, privacy_consent: true });
   const isNew = result.response.status === 201;
   if (result.response.status === 409) result = await api('/login', 'POST', { email, password });
   if (!result.response.ok) throw new Error(JSON.stringify(result.data));

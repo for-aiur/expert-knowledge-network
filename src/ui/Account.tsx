@@ -15,7 +15,9 @@ export function Credentials({ onAccount }: { onAccount: (user: Profile, onboardi
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
-    const values = Object.fromEntries(new FormData(form));
+    const formData = new FormData(form);
+    const values: Record<string, unknown> = Object.fromEntries(formData);
+    if (signup) values.privacy_consent = formData.get('privacy_consent') === 'on';
     setError(undefined);
     setInvalid('');
     const firstInvalid = Array.from(form.elements).find(element => element instanceof HTMLInputElement &&
@@ -52,6 +54,10 @@ export function Credentials({ onAccount }: { onAccount: (user: Profile, onboardi
         {signup && <small>{t('passwordHelp')}</small>}</label>
       {signup && <label>{t('publicNickname')}<input {...issue('nickname')} name="nickname" dir="auto"
         autoComplete="nickname" maxLength={40} required /></label>}
+      {signup && <label>{t('betaInvite')}<input {...issue('invite_code')} name="invite_code" type="password" dir="ltr"
+        autoComplete="off" maxLength={128} required /></label>}
+      {signup && <label className="consent-choice"><input {...issue('privacy_consent')} type="checkbox" name="privacy_consent" required />
+        <span>{t('privacyConsent')} <a href="/privacy" target="_blank" rel="noreferrer">{t('privacyNotice')}</a></span></label>}
       {(error || invalid) && <p role="alert" id="credentials-error" className="error">
         {t(error ?? (invalid === 'email' ? 'fieldEmail' : invalid === 'password' && signup ? 'passwordHelp' : 'credentials'))}
       </p>}
@@ -64,6 +70,31 @@ export function Credentials({ onAccount }: { onAccount: (user: Profile, onboardi
         }}>{t(signup ? 'back' : 'create')}</button>
       </div>
     </form>
+  </section>;
+}
+
+export function DeleteAccount() {
+  const { t } = useLanguage();
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState<Message>();
+  const [busy, setBusy] = useState(false);
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true); setError(undefined);
+    const password = String(new FormData(event.currentTarget).get('password') ?? '');
+    try {
+      await request('/account/delete', 'POST', { password });
+      window.location.replace('/');
+    } catch (cause) { setError(message(cause)); setBusy(false); }
+  }
+  return <section className="delete-account">
+    <h2>{t('deleteAccount')}</h2><p>{t('deleteAccountHelp')}</p>
+    {!open ? <button type="button" className="danger-button" onClick={()=>setOpen(true)}>{t('deleteAccount')}</button> :
+      <form className="stack" onSubmit={submit}>
+        <label>{t('confirmPassword')}<input type="password" name="password" autoComplete="current-password" required /></label>
+        {error && <p className="error" role="alert">{t(error)}</p>}
+        <button className="danger-button" disabled={busy}>{t(busy ? 'working' : 'deleteConfirm')}</button>
+      </form>}
   </section>;
 }
 

@@ -11,7 +11,11 @@
     "test": "npm run build && node --test",
     "test:browser": "node scripts/check-browser.mjs",
     "seed:repairs": "node scripts/seed-repairs.mjs",
-    "test:repairs-browser": "node scripts/check-repairs-browser.mjs"
+    "seed:demo": "node scripts/seed-demo.mjs",
+    "admin:grant": "node scripts/admin-grant.mjs",
+    "client:provision": "node scripts/provision-client.mjs",
+    "test:repairs-browser": "node scripts/check-repairs-browser.mjs",
+    "load:smoke": "node scripts/load-smoke.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.79.0",

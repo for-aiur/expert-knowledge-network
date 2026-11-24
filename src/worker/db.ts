@@ -10,14 +10,15 @@ export interface Database {
   batch(statements: Statement[]): Promise<unknown>;
 }
 
-export type Account = { id: string; nickname: string };
-export type Profile = Account & { expertise: string[] };
+export type Account = { id: string; nickname: string; role?: 'member' | 'admin' };
+export type Profile = Account & { expertise: string[]; is_admin: boolean };
 
 export async function profile(db: Database, account: Account): Promise<Profile> {
   const { results } = await db.prepare(
     'SELECT category_id FROM user_expertise WHERE user_id = ? ORDER BY category_id'
   ).bind(account.id).all<{ category_id: string }>();
-  return { id: account.id, nickname: account.nickname, expertise: results.map(row => row.category_id) };
+  return { id: account.id, nickname: account.nickname, expertise: results.map(row => row.category_id),
+    is_admin: account.role === 'admin' };
 }
 
 export async function setExpertise(db: Database, account: Account, ids: string[]) {

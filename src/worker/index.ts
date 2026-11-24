@@ -1,13 +1,17 @@
 import { taskRoute } from './tasks';
+import { adminRoute } from './admin';
 import { repairRoute } from './repair';
 import { isLocale, type Locale, type Message } from '../i18n/messages';
 import { expertiseValues, isRecord, validateFields, workflowFor } from '../workflows';
 import { authenticate, createSession, logout, rateAllowed, register, sessionAccount } from './auth';
 import { profile, setExpertise, type Database } from './db';
+import { allocation } from './review-allocation';
+import { verifyAccountPassword } from './auth';
 
 interface Env {
   DB: Database;
   ASSETS: { fetch(request: Request): Promise<Response> };
+  BETA_INVITE_CODE?: string;
 }
 
 function json(data: unknown, status = 200, headers: Record<string, string> = {}) {
@@ -57,6 +61,17 @@ async function api(request: Request, env: Env, url: URL) {
     return json({ user: account ? await profile(env.DB, account) : null });
   }
   const versioned = path.startsWith('/api/v1/');
+  if (path.startsWith('/api/v1/admin/')) {
+    const account = await sessionAccount(env.DB, request);
+    if (!account || account.role !== 'admin') return error('adminForbidden', account ? 403 : 401);
+    if (method !== 'GET') return error('notFound', 404);
+    const result = await adminRoute(env.DB, url);
+    if (typeof result.data === 'string' && result.headers?.['Content-Type']?.startsWith('text/csv')) {
+      return new Response(result.data, { status: result.status,
+        headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...result.headers } });
+    }
+    return json(result.data, result.status, result.headers);
+  }
   const requestedLanguage = request.headers.get('X-EKN-Language');
   const locale: Locale = isLocale(requestedLanguage) ? requestedLanguage : 'en';
   if (versioned && method === 'GET') {
@@ -90,6 +105,11 @@ async function api(request: Request, env: Env, url: URL) {
         (signingUp && (!nickname || nickname.length > 40 || /[\u0000-\u001f]/.test(nickname)))) {
       return error('credentials', 400);
     }
+    if (signingUp && (!env.BETA_INVITE_CODE || typeof input.invite_code !== 'string' ||
+        input.invite_code.length > 128 || input.invite_code !== env.BETA_INVITE_CODE)) {
+      return error('betaInviteRequired', 403);
+    }
+    if (signingUp && input.privacy_consent !== true) return error('privacyConsentRequired', 400);
     if (!await rateAllowed(env.DB, signingUp ? 'register' : 'login', request.headers.get('CF-Connecting-IP') ?? 'local')) {
       return json({ code: 'limited' }, 429, { 'Retry-After': '600' });
     }
@@ -109,6 +129,43 @@ async function api(request: Request, env: Env, url: URL) {
     if (Object.keys(input).length !== 1 || ids === null) return error('categoryError', 400);
     await setExpertise(env.DB, account, ids);
     return json({ user: await profile(env.DB, account) });
+  }
+
+  if (method === 'POST' && path === '/api/account/delete') {
+    const account = await sessionAccount(env.DB, request);
+    if (!account) return error('signInEdit', 401);
+    if (typeof input.password !== 'string' || !await verifyAccountPassword(env.DB, account.id, input.password)) {
+      return error('deleteError', 403);
+    }
+    const affected = await env.DB.prepare(`SELECT DISTINCT a.submission_id AS id FROM review_assignments a
+      JOIN workflow_submissions s ON s.id = a.submission_id
+      WHERE a.reviewer_id = ? AND s.user_id IS NOT ?`).bind(account.id, account.id).all<{ id: string }>();
+    const batch = [
+      env.DB.prepare(`DELETE FROM point_reversals WHERE entry_id IN (SELECT id FROM points_ledger WHERE user_id = ?
+        OR review_id IN (SELECT r.id FROM reviews r JOIN review_assignments a ON a.id = r.assignment_id
+          WHERE a.reviewer_id = ? OR a.submission_id IN (SELECT id FROM workflow_submissions WHERE user_id = ?)))`)
+        .bind(account.id, account.id, account.id),
+      env.DB.prepare(`DELETE FROM points_ledger WHERE user_id = ? OR submission_id IN
+        (SELECT id FROM workflow_submissions WHERE user_id = ?) OR review_id IN
+        (SELECT r.id FROM reviews r JOIN review_assignments a ON a.id = r.assignment_id
+          WHERE a.reviewer_id = ? OR a.submission_id IN (SELECT id FROM workflow_submissions WHERE user_id = ?))`)
+        .bind(account.id, account.id, account.id, account.id),
+      env.DB.prepare(`DELETE FROM reviews WHERE assignment_id IN (SELECT id FROM review_assignments
+        WHERE reviewer_id = ? OR submission_id IN (SELECT id FROM workflow_submissions WHERE user_id = ?))`)
+        .bind(account.id, account.id),
+      env.DB.prepare(`DELETE FROM review_assignments WHERE reviewer_id = ? OR submission_id IN
+        (SELECT id FROM workflow_submissions WHERE user_id = ?)`).bind(account.id, account.id),
+      env.DB.prepare('DELETE FROM repair_drafts WHERE user_id = ?').bind(account.id),
+      env.DB.prepare('DELETE FROM workflow_submissions WHERE user_id = ?').bind(account.id),
+      ...affected.results.map(row => env.DB.prepare(`UPDATE workflow_submissions SET review_status = 'pending',
+        assessment_override = NULL, updated_at = unixepoch() WHERE id = ?`).bind(row.id)),
+      env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(account.id),
+      env.DB.prepare('DELETE FROM user_expertise WHERE user_id = ?').bind(account.id),
+      env.DB.prepare('DELETE FROM users WHERE id = ?').bind(account.id),
+      ...affected.results.flatMap(row => allocation(env.DB, row.id)),
+    ];
+    await env.DB.batch(batch);
+    return json({ deleted: true }, 200, { 'Set-Cookie': '__Host-ekn_session=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax' });
   }
 
   const match = /^\/api\/workflows\/([a-z_]+)\/(\d+)\/validate$/.exec(path);
@@ -131,7 +188,8 @@ export default {
     if (url.pathname !== '/api' && !url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
     try {
       return await api(request, env, url);
-    } catch {
+    } catch (cause) {
+      console.error('Worker request failed', url.pathname, cause instanceof Error ? cause.message : 'unknown error');
       return error('failure', 500);
     }
   },

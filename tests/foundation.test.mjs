@@ -22,6 +22,15 @@ function wrangler(args) {
   return command;
 }
 
+async function executeD1(command) {
+  const process = wrangler(['d1', 'execute', 'DB', '--local', '--persist-to', directory, '--command', command]);
+  let output = '';
+  for (const stream of [process.stdout, process.stderr]) stream.on('data', data => { output += data; });
+  const code = await new Promise(resolve => process.on('close', resolve));
+  assert.equal(code, 0, output);
+  return output;
+}
+
 before(async () => {
   directory = await mkdtemp(join(tmpdir(), 'ekn-tests-'));
   const migrate = wrangler(['d1', 'migrations', 'apply', 'DB', '--local', '--persist-to', directory]);
@@ -32,7 +41,8 @@ before(async () => {
     migrate.on('close', resolve);
   });
   assert.equal(code, 0, migrationOutput);
-  worker = wrangler(['dev', '--local', '--ip', '127.0.0.1', '--port', port, '--persist-to', directory]);
+  worker = wrangler(['dev', '--local', '--ip', '127.0.0.1', '--port', port, '--persist-to', directory,
+    '--var', 'BETA_INVITE_CODE:local-test-invite']);
   for (const stream of [worker.stdout, worker.stderr]) stream.on('data', data => { workerOutput += data; });
   for (let count = 0; count < 80; count++) {
     if (worker.exitCode !== null) break;
@@ -56,12 +66,14 @@ after(async () => {
   if (directory) await rm(directory, { recursive: true, force: true });
 });
 
-async function call(path, { body, method = body ? 'POST' : 'GET', cookie, origin = base, locale, headers: extra = {} } = {}) {
+async function call(path, { body, method = body ? 'POST' : 'GET', cookie, origin = base, locale, headers: extra = {},
+  signup = true } = {}) {
   const headers = { Origin: origin, ...extra };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (cookie) headers.Cookie = cookie;
   if (locale) headers['X-EKN-Language'] = locale;
-  const response = await fetch(base + '/api' + path, { method, headers, body: JSON.stringify(body) });
+  const requestBody = path === '/register' && signup && body ? { ...body, invite_code: 'local-test-invite', privacy_consent: true } : body;
+  const response = await fetch(base + '/api' + path, { method, headers, body: JSON.stringify(requestBody) });
   return { status: response.status, data: await response.json(), cookie: response.headers.get('Set-Cookie') };
 }
 
@@ -77,6 +89,8 @@ test('D1 migration and health endpoint work, and assets serve the application', 
 });
 
 test('registration, login, session refresh, logout and profile authorization', async () => {
+  assert.equal((await call('/register', { body: { ...alice, invite_code: 'wrong', privacy_consent: true }, signup: false })).status, 403);
+  assert.equal((await call('/register', { body: { ...alice, invite_code: 'local-test-invite' }, signup: false })).status, 400);
   assert.equal((await call('/register', { body: { ...alice, password: 'short' } })).status, 400);
   const first = await call('/register', { body: alice });
   assert.equal(first.status, 201, JSON.stringify(first.data));
@@ -84,7 +98,7 @@ test('registration, login, session refresh, logout and profile authorization', a
   const second = await call('/register', { body: bob });
   assert.equal(second.status, 201);
   assert.notEqual(first.data.user.id, second.data.user.id);
-  assert.deepEqual(Object.keys(first.data.user).sort(), ['expertise', 'id', 'nickname']);
+  assert.deepEqual(Object.keys(first.data.user).sort(), ['expertise', 'id', 'is_admin', 'nickname']);
   assert.equal((await call('/register', { body: alice })).status, 409);
   assert.equal((await call('/login', { body: { ...alice, password: 'wrong' } })).status, 401);
   const cookie = token(first);
@@ -576,4 +590,57 @@ test('private client diagnosis creation, shared blind review, safety and structu
     check(response, 200);
   }
   assert.fail('Client rate limit was not reached');
+});
+
+test('admin access is role-gated and exports protect private tasks and CSV formulas', async () => {
+  const api = path => call('/v1/admin/' + path);
+  assert.equal((await api('overview')).status, 401);
+  assert.equal((await call('/v1/admin/overview', { headers: { Authorization: 'Bearer synthetic-key' } })).status, 401);
+  await executeD1('DELETE FROM auth_limits');
+  const ordinary = await call('/login', { body: alice });
+  assert.equal((await call('/v1/admin/overview', { cookie: token(ordinary) })).status, 403);
+  await executeD1("UPDATE users SET role = 'admin' WHERE email = 'm2-0@example.invalid'");
+  const adminLogin = await call('/login', { body: {
+    email: 'm2-0@example.invalid', password: 'synthetic-m2-password',
+  } });
+  assert.equal(adminLogin.status, 200);
+  assert.equal(adminLogin.data.user.is_admin, true);
+  const admin = token(adminLogin);
+  const authorized = (path, options = {}) => call('/v1/admin/' + path, { cookie: admin, ...options });
+  const overview = await authorized('overview');
+  assert.equal(overview.status, 200);
+  assert.ok(overview.data.repair_count > 0);
+  assert.ok(overview.data.diagnosis_count > 0);
+  const records = await authorized('submissions?type=diagnosis_review&limit=5');
+  assert.equal(records.status, 200);
+  const detail = await authorized('submissions/' + records.data.items[0].id);
+  assert.equal(detail.status, 200);
+  assert.ok(Array.isArray(detail.data.reviews));
+  assert.equal(detail.data.email, undefined);
+  const exported = await authorized('export?format=json');
+  assert.equal(exported.status, 200);
+  assert.ok(exported.data.records.length > 0);
+  assert.ok(exported.data.records.every(row => row.workflow_type === 'repair_case' &&
+    row.status === 'peer_reviewed' && row.sharing_permission === 'community'));
+  assert.ok(!JSON.stringify(exported.data).includes('diagnosis_review'));
+  assert.ok(!JSON.stringify(exported.data).includes('@example.invalid'));
+  const privateScope = await authorized('export?format=json&scope=internal');
+  assert.ok(privateScope.data.records.some(row => row.sharing_permission === 'private'));
+  assert.ok(privateScope.data.records.every(row => row.workflow_type === 'repair_case'));
+
+  const publicId = exported.data.records[0].id;
+  await executeD1(`UPDATE workflow_submissions SET payload = json_set(payload, '$.symptoms', '=1+1') WHERE id = '${publicId}'`);
+  const csvResponse = await fetch(base + '/api/v1/admin/export?format=csv', {
+    headers: { Cookie: adminLogin.cookie.split(';')[0] },
+  });
+  assert.equal(csvResponse.status, 200);
+  assert.match(csvResponse.headers.get('content-type'), /text\/csv/);
+  assert.match(await csvResponse.text(), /'=1\+1/);
+  assert.equal((await authorized('submissions?type=unknown')).status, 400);
+
+  const deletionLogin = await call('/login', { body: bob });
+  assert.equal((await call('/account/delete', { cookie: token(deletionLogin), body: { password: 'wrong-password' } })).status, 403);
+  assert.equal((await call('/account/delete', { cookie: token(deletionLogin), body: { password: bob.password } })).status, 200);
+  assert.deepEqual((await call('/session', { cookie: token(deletionLogin) })).data, { user: null });
+  assert.equal((await call('/login', { body: bob })).status, 401);
 });

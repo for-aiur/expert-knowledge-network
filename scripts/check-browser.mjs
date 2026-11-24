@@ -15,8 +15,9 @@ async function layout(page, detail) {
   const issues = await page.evaluate(() => {
     const viewport = document.documentElement.clientWidth;
     const problems = [];
-    if (document.documentElement.scrollWidth !== viewport) problems.push('horizontal overflow');
+      if (document.documentElement.scrollWidth !== viewport) problems.push('horizontal overflow');
     for (const node of document.querySelectorAll('nav a, button, input:not([type=checkbox]), select, textarea, .choice, .button, summary')) {
+        if (getComputedStyle(node).display === 'none') continue;
       if (node.closest('details:not([open])') && node.tagName !== 'SUMMARY') continue;
       const rect = node.getBoundingClientRect();
       if (rect.height < 44 || rect.left < -1 || rect.right > viewport + 1 || node.scrollWidth > node.clientWidth + 2) {
@@ -116,6 +117,10 @@ try {
   await page.locator('input[name=email]').fill(email);
   await page.locator('input[name=password]').fill(password);
   await page.locator('input[name=nickname]').fill('ورشة E-42');
+  const inviteCode = process.env.EKN_BETA_INVITE_CODE;
+  if (!inviteCode) throw new Error('Set EKN_BETA_INVITE_CODE for the gated browser signup check.');
+  await page.locator('input[name=invite_code]').fill(inviteCode);
+  await page.locator('input[name=privacy_consent]').check();
   await page.getByRole('button', { name: 'متابعة' }).click();
   await page.getByRole('heading', { name: 'إعداد ملفك الشخصي' }).waitFor();
   await page.locator('.choice').nth(0).click();

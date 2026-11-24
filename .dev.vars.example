@@ -1,0 +1,2 @@
+# Copy to .dev.vars and replace with a random, private invite code.
+BETA_INVITE_CODE="replace-with-a-long-random-local-invite"
