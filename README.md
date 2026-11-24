@@ -12,12 +12,15 @@ Technicians submit repair reports, respond to reviewer questions, and review cas
 
 ## Features
 
-- Submit and manage repair reports, including drafts and clarification responses.
-- Review repair cases with a structured technical rubric.
-- Request independent expert review of AI diagnoses through the API.
-- Track contribution points, reputation and professional community achievements.
+- Build a profile with self-declared areas of expertise. Expertise is not a verified professional credential.
+- Submit, save and manage repair reports, including drafts and reviewer clarification requests.
+- Assign each report to two eligible experts at random, matched by equipment expertise and independent from the author.
+- Send split valid/invalid assessments to a third expert for a tie-break review.
+- Collect structured technical reviews while keeping the reported repair outcome separate from peer assessment.
+- Earn contribution points, build reputation and appear on the community leaderboard.
+- Request independent human assessment of AI diagnoses through the API.
 - Use the interface in English, German, Turkish, Polish, Russian or Arabic.
-- Give administrators controlled access to approved, shareable data.
+- Give administrators controlled access to inspect and export authorized data.
 
 ## API
 
